@@ -39,3 +39,10 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# local SQLite database
+movies.db
+movies.db-*
+
+# locally cached posters (see src/lib/posters.ts)
+/data/
