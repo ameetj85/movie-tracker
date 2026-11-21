@@ -1,0 +1,68 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+@AGENTS.md
+
+## Project status
+
+"Movie Vault": a local-first tracker for a personal collection of owned and wishlisted movies. The product spec is `FUNCTIONAL-REQ.mc` (Markdown, despite the extension). It defines three phases:
+
+- **Phase 1 (MVP): done.** Manual CRUD, owned/wishlist split, title/director/cast search, duplicate warnings.
+- **Phase 2: done.** TMDB auto-fill, offline poster cache, colored format badges, filters (format, genre, status, decade), sorting, grid/list toggle.
+- **Phase 3: next.** Stats header, plus CSV export and import.
+
+## Environment
+
+`.env.local` (gitignored) holds `TMDB_READ_ACCESS_TOKEN` (v4 token, preferred, sent as a Bearer header) and/or `TMDB_API_KEY` (v3 key, fallback). Without either, the TMDB panel is hidden and manual entry still works. Optional overrides: `DATABASE_PATH` (default `movies.db`) and `POSTER_DIR` (default `data/posters`). The add page is prerendered, so whether TMDB is enabled is decided at build time.
+
+## Commands
+
+- `npm run dev` — dev server (Turbopack) at http://localhost:3000
+- `npm run build` — production build; also type-checks
+- `npm run lint` — ESLint 9 flat config (`eslint.config.mjs`, extends `eslint-config-next` core-web-vitals + typescript)
+- `npx tsc --noEmit` — type-check only. After adding or renaming routes, run `npx next typegen` first, or `PageProps<"/new/route">` fails to type-check.
+- `npm run db:generate` — after editing `src/db/schema.ts`, generate a SQL migration into `drizzle/` (commit it)
+- `npm run db:studio` — browse the database
+- `npx shadcn@latest add <component>` — add a shadcn/ui component into `src/components/ui/`
+
+There is no test framework configured yet.
+
+## Data layer
+
+- SQLite through **Drizzle ORM** and `better-sqlite3`, which is synchronous. `src/db/index.ts` opens a single connection (cached on `globalThis` across HMR) and **runs pending migrations from `drizzle/` automatically on first connection**, so `db:migrate` is rarely needed. The DB file is `movies.db` in the project root (gitignored). Override it with `DATABASE_PATH`.
+- The schema deliberately differs from the spec's single `movies` table. A **`movies`** row holds title-level data plus personal fields: `watch_status` is a 3-value enum (unwatched/in_progress/watched) instead of a boolean, `rating` is 1–10, there's an `is_wishlist` flag and a `cast` column, and `genres` is a JSON array. Each owned format is a **`copies`** row (format, edition, purchase date, `price_cents`, condition) with `ON DELETE CASCADE`. This is how one movie can be owned in several formats.
+- Reads live in `src/lib/queries.ts` (`server-only`). Mutations live in `src/lib/actions.ts` (Server Actions). After writing, each action calls `revalidatePath("/", "layout")` and redirects. Updates replace a movie's copies wholesale inside a transaction.
+- Duplicate warning: a "duplicate" is the same film (same title case-insensitive, **or** the same `tmdb_id`) with the same format. Actions return `{status: "duplicate"}` unless the form was submitted with `confirmDuplicate=1` (the "Save anyway" button). On edit, only newly added formats are checked, unless the title or TMDB id changed.
+- Collection page state lives entirely in URL params (`view`, `q`, `format`, `genre`, `status`, `decade`, `sort`, `layout`). `src/lib/collection-params.ts` parses them, silently dropping invalid values, and is shared by server and client. The `format=digital` filter matches any `Digital - …` format. The genre filter queries the JSON column with `json_each`. Filter dropdowns list only values present in the data (`getFilterOptions`).
+
+## TMDB and posters
+
+- `src/lib/tmdb.ts` (server-only) is the only code that talks to TMDB. The browser calls it through `GET /api/tmdb/search?q=` and `GET /api/tmdb/movie/[id]`. Selecting a result in `<TmdbSearch>` overwrites only the metadata fields in the form. Ownership and personal fields are kept.
+- **Posters are cached for offline use.** The form keeps the remote TMDB URL. On save, `cachePoster()` in `src/lib/posters.ts` downloads any http(s) poster into `data/posters/<sha256>.<ext>` (gitignored) and stores `/posters/<file>` in the DB. If the download fails, the save still succeeds with the remote URL. The files are served by `src/app/posters/[file]/route.ts`, not from `public/`, because Next only serves `public/` files that existed at build time. When an update or delete leaves a cached poster unreferenced, the file is deleted.
+- Posters render with a plain `<img>`, not `next/image` (`src/components/poster.tsx`).
+
+## Forms
+
+`src/components/movie-form.tsx` is fully controlled. It posts its whole state as JSON in a hidden `payload` field. The server parses that field with the Zod schema in `src/lib/validation.ts`, which converts form strings to typed values (`""` → `null`, price → cents, comma-separated genres → array). Field errors come back keyed by Zod path, e.g. `copies.0.format`. The add and edit pages reuse this form. Edit passes `updateMovie.bind(null, id)`.
+
+## Rendering with Cache Components
+
+Nothing uses `"use cache"` yet, because every DB read happens at request time. Each page renders a static shell and awaits `params`/`searchParams` inside a child component wrapped in `<Suspense>`. Keep that pattern for new DB-reading pages: an uncached read outside `<Suspense>` triggers the blocking-route error. Don't call `new Date()` or `Date.now()` at module scope or during render either.
+
+## Stack and version caveats
+
+- **Next.js 16 / React 19**, App Router only, code under `src/`, import alias `@/*` → `src/*`. As AGENTS.md says, check `node_modules/next/dist/docs/` before relying on remembered Next.js APIs.
+- `next.config.ts` enables `cacheComponents` and `partialPrefetching`. Those settings change how data fetching and caching behave in Server Components (dynamic data must be inside `<Suspense>` or explicitly cached), so read the bundled docs on Cache Components before writing data-loading code.
+- Route components use the generated global types `PageProps<"/route">` / `LayoutProps<"/route">` (see `src/app/layout.tsx`) instead of hand-written props types.
+- **Tailwind CSS v4**: there is no `tailwind.config.*`. Theme tokens live in `src/app/globals.css` (`@theme inline` maps CSS variables such as `--primary` and `--radius` to Tailwind utilities; `:root` and `.dark` hold light and dark values). CSS is processed through the `@tailwindcss/turbopack` loader configured in `next.config.ts`.
+
+## shadcn/ui specifics
+
+- Style is `base-nova` (see `components.json`). Components are built on **Base UI (`@base-ui/react`), not Radix**, so primitive props and composition patterns follow Base UI conventions (for example, the `render` prop rather than Radix's `asChild`). Check the generated component source before assuming a Radix API.
+- Class merging uses the `cn` npm package (shadcn's drop-in replacement for clsx + tailwind-merge). Generated components import it as `from "cn"`; `@/lib/utils` just re-exports it.
+- Files in `src/components/ui/` are generated but owned by this repo, so editing them is fine. Put app-specific components in `src/components/`.
+- Icons come from `lucide-react`. `next-themes` is installed, and dark mode uses the `.dark` class variant, but no theme provider is wired up yet.
+- Base UI `Select` displays raw values unless the `items` prop (a value → label map) is passed to the root. Pass `null` as the value to show the placeholder.
+- `<Toaster />` (sonner) is mounted in the root layout.
+- ESLint includes React Compiler rules such as `react-hooks/set-state-in-effect`. Derive state during render, and set state only in async callbacks inside effects. `src/components/tmdb-search.tsx` shows the pattern.
