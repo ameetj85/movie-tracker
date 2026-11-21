@@ -2,6 +2,7 @@ import { FilmIcon, FilterXIcon, PlusIcon, SearchXIcon } from "lucide-react";
 import Link from "next/link";
 import { Suspense } from "react";
 
+import { CollectionStats, CollectionStatsSkeleton } from "@/components/collection-stats";
 import { FilterBar } from "@/components/filter-bar";
 import { MovieCard } from "@/components/movie-card";
 import { MovieTable } from "@/components/movie-table";
@@ -18,6 +19,9 @@ export default function HomePage({ searchParams }: PageProps<"/">) {
   return (
     <div className="flex flex-col gap-6">
       <h1 className="text-2xl font-semibold tracking-tight">My Collection</h1>
+      <Suspense fallback={<CollectionStatsSkeleton />}>
+        <CollectionStats />
+      </Suspense>
       <Suspense fallback={<CollectionSkeleton />}>
         <Collection searchParams={searchParams} />
       </Suspense>

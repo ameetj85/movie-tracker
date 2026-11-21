@@ -1,4 +1,4 @@
-import { FilmIcon, PlusIcon } from "lucide-react";
+import { ArrowDownUpIcon, FilmIcon, PlusIcon } from "lucide-react";
 import Link from "next/link";
 
 import { buttonVariants } from "@/components/ui/button";
@@ -11,10 +11,21 @@ export function SiteHeader() {
           <FilmIcon className="size-5" aria-hidden />
           Movie Vault
         </Link>
-        <Link href="/movies/add" className={buttonVariants({ size: "sm" })}>
-          <PlusIcon aria-hidden />
-          Add movie
-        </Link>
+        <nav className="flex items-center gap-1">
+          <Link
+            href="/data"
+            className={buttonVariants({ variant: "ghost", size: "sm" })}
+            aria-label="Import and export"
+            title="Import & export"
+          >
+            <ArrowDownUpIcon aria-hidden />
+            <span className="hidden sm:inline">Import / Export</span>
+          </Link>
+          <Link href="/movies/add" className={buttonVariants({ size: "sm" })}>
+            <PlusIcon aria-hidden />
+            Add movie
+          </Link>
+        </nav>
       </div>
     </header>
   );
