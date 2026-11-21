@@ -23,6 +23,8 @@
   --color-chart-3: var(--chart-3);
   --color-chart-2: var(--chart-2);
   --color-chart-1: var(--chart-1);
+  --color-chart-bar: var(--chart-bar);
+  --color-chart-track: var(--chart-track);
   --color-ring: var(--ring);
   --color-input: var(--input);
   --color-border: var(--border);
@@ -49,6 +51,9 @@
 }
 
 :root {
+  /* Single-hue data color (validated: dataviz palette slot 1) + same-ramp track. */
+  --chart-bar: #2a78d6;
+  --chart-track: #dbe8f8;
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
@@ -84,6 +89,8 @@
 }
 
 .dark {
+  --chart-bar: #3987e5;
+  --chart-track: #1c2c42;
   --background: oklch(0.145 0 0);
   --foreground: oklch(0.985 0 0);
   --card: oklch(0.205 0 0);
