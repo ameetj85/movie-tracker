@@ -1,0 +1,161 @@
+"use server";
+
+import { count, eq, sql } from "drizzle-orm";
+import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
+
+import { db } from "@/db";
+import { copies, movies } from "@/db/schema";
+import { cachePoster, deletePosterFile, isLocalPoster } from "@/lib/posters";
+import { findDuplicates, getMovie, type DuplicateMatch } from "@/lib/queries";
+import { movieInputSchema, toFieldErrors, type FieldErrors, type MovieInput } from "@/lib/validation";
+
+export type MovieFormState =
+  | { status: "idle" }
+  | { status: "error"; message: string; fieldErrors: FieldErrors }
+  | { status: "duplicate"; duplicates: DuplicateMatch[] };
+
+type Parsed = { ok: true; data: MovieInput; confirmDuplicate: boolean } | { ok: false; state: MovieFormState };
+
+/** The client form posts its whole state as JSON in a single `payload` field. */
+function parseForm(formData: FormData): Parsed {
+  let raw: unknown;
+  try {
+    raw = JSON.parse(String(formData.get("payload") ?? ""));
+  } catch {
+    return { ok: false, state: { status: "error", message: "Invalid form submission.", fieldErrors: {} } };
+  }
+  const result = movieInputSchema.safeParse(raw);
+  if (!result.success) {
+    return {
+      ok: false,
+      state: { status: "error", message: "Please fix the highlighted fields.", fieldErrors: toFieldErrors(result.error) },
+    };
+  }
+  return { ok: true, data: result.data, confirmDuplicate: formData.get("confirmDuplicate") === "1" };
+}
+
+function movieValues(m: MovieInput, posterUrl: string | null) {
+  return {
+    tmdbId: m.tmdbId,
+    title: m.title,
+    releaseYear: m.releaseYear,
+    director: m.director,
+    cast: m.cast,
+    genres: m.genres,
+    posterUrl,
+    synopsis: m.synopsis,
+    runtime: m.runtime,
+    isWishlist: m.isWishlist,
+    watchStatus: m.watchStatus,
+    rating: m.rating,
+    notes: m.notes,
+  };
+}
+
+function copyValues(movieId: number, m: MovieInput) {
+  return m.copies.map((c) => ({
+    movieId,
+    format: c.format,
+    edition: c.edition,
+    purchaseDate: c.purchaseDate,
+    priceCents: c.price,
+    condition: c.condition,
+  }));
+}
+
+async function duplicateCheck(m: MovieInput, formats: string[], excludeId?: number): Promise<MovieFormState | null> {
+  const duplicates = await findDuplicates(m, formats, excludeId);
+  return duplicates.length ? { status: "duplicate", duplicates } : null;
+}
+
+/**
+ * Formats to duplicate-check on edit: only ones newly added, unless the film's
+ * identity (title / TMDB id) changed. Otherwise a duplicate the user already
+ * confirmed would re-warn on every later edit.
+ */
+function formatsToCheckOnEdit(existing: { title: string; tmdbId: number | null; copies: { format: string }[] }, m: MovieInput) {
+  const formats = m.copies.map((c) => c.format);
+  const sameFilm = existing.title.toLowerCase() === m.title.toLowerCase() && existing.tmdbId === m.tmdbId;
+  if (!sameFilm) return formats;
+  const had = new Set(existing.copies.map((c) => c.format));
+  return formats.filter((f) => !had.has(f));
+}
+
+/** Remove a cached poster file once no movie references it any more. */
+async function deletePosterIfUnused(url: string | null) {
+  if (!isLocalPoster(url)) return;
+  const [{ n }] = await db.select({ n: count() }).from(movies).where(eq(movies.posterUrl, url));
+  if (n === 0) await deletePosterFile(url);
+}
+
+export async function createMovie(_prev: MovieFormState, formData: FormData): Promise<MovieFormState> {
+  const parsed = parseForm(formData);
+  if (!parsed.ok) return parsed.state;
+  const { data, confirmDuplicate } = parsed;
+
+  if (!confirmDuplicate) {
+    const dup = await duplicateCheck(data, data.copies.map((c) => c.format));
+    if (dup) return dup;
+  }
+
+  // Cache remote posters locally so the collection works offline.
+  const posterUrl = await cachePoster(data.posterUrl);
+
+  const id = db.transaction((tx) => {
+    const row = tx.insert(movies).values(movieValues(data, posterUrl)).returning({ id: movies.id }).get();
+    if (data.copies.length) tx.insert(copies).values(copyValues(row.id, data)).run();
+    return row.id;
+  });
+
+  revalidatePath("/", "layout");
+  redirect(`/movies/${id}`);
+}
+
+export async function updateMovie(
+  id: number,
+  _prev: MovieFormState,
+  formData: FormData,
+): Promise<MovieFormState> {
+  const parsed = parseForm(formData);
+  if (!parsed.ok) return parsed.state;
+  const { data, confirmDuplicate } = parsed;
+
+  const existing = await getMovie(id);
+  if (!existing) {
+    return { status: "error", message: "This movie no longer exists.", fieldErrors: {} };
+  }
+
+  if (!confirmDuplicate) {
+    const dup = await duplicateCheck(data, formatsToCheckOnEdit(existing, data), id);
+    if (dup) return dup;
+  }
+
+  const posterUrl = await cachePoster(data.posterUrl);
+
+  db.transaction((tx) => {
+    tx.update(movies)
+      .set({ ...movieValues(data, posterUrl), updatedAt: sql`CURRENT_TIMESTAMP` })
+      .where(eq(movies.id, id))
+      .run();
+    // Copies have no identity outside their movie, so replace the set wholesale.
+    tx.delete(copies).where(eq(copies.movieId, id)).run();
+    if (data.copies.length) tx.insert(copies).values(copyValues(id, data)).run();
+  });
+
+  if (existing.posterUrl !== posterUrl) await deletePosterIfUnused(existing.posterUrl);
+
+  revalidatePath("/", "layout");
+  redirect(`/movies/${id}`);
+}
+
+export async function deleteMovie(id: number): Promise<void> {
+  const deleted = db
+    .delete(movies)
+    .where(eq(movies.id, id))
+    .returning({ posterUrl: movies.posterUrl })
+    .get();
+  if (deleted) await deletePosterIfUnused(deleted.posterUrl);
+  revalidatePath("/", "layout");
+  redirect("/");
+}
