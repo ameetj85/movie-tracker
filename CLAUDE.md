@@ -10,7 +10,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 - **Phase 1 (MVP): done.** Manual CRUD, owned/wishlist split, title/director/cast search, duplicate warnings.
 - **Phase 2: done.** TMDB auto-fill, offline poster cache, colored format badges, filters (format, genre, status, decade), sorting, grid/list toggle.
-- **Phase 3: next.** Stats header, plus CSV export and import.
+- **Phase 3: done.** Stats header on the collection page, CSV/JSON export, and CSV import with preview and optional TMDB enrichment (`/data`).
 
 ## Environment
 
@@ -41,6 +41,22 @@ There is no test framework configured yet.
 - `src/lib/tmdb.ts` (server-only) is the only code that talks to TMDB. The browser calls it through `GET /api/tmdb/search?q=` and `GET /api/tmdb/movie/[id]`. Selecting a result in `<TmdbSearch>` overwrites only the metadata fields in the form. Ownership and personal fields are kept.
 - **Posters are cached for offline use.** The form keeps the remote TMDB URL. On save, `cachePoster()` in `src/lib/posters.ts` downloads any http(s) poster into `data/posters/<sha256>.<ext>` (gitignored) and stores `/posters/<file>` in the DB. If the download fails, the save still succeeds with the remote URL. The files are served by `src/app/posters/[file]/route.ts`, not from `public/`, because Next only serves `public/` files that existed at build time. When an update or delete leaves a cached poster unreferenced, the file is deleted.
 - Posters render with a plain `<img>`, not `next/image` (`src/components/poster.tsx`).
+
+## Import / export (Phase 3)
+
+- **CSV layout** (`src/lib/csv-format.ts`, `CSV_COLUMNS`): one row per copy, with movie-level columns repeated on each row. A movie with no copies is one row with empty copy columns. Any change to the layout must keep export → import round-tripping to byte-identical output; the e2e tests check this.
+- **Export** (`GET /api/export?format=csv|json`, `src/lib/export.ts`): the CSV gets a BOM and CRLF line endings, and cells starting with `= + - @` get a leading `'` so spreadsheets don't run them as formulas. The importer strips that prefix again.
+- **Import** (`POST /api/import`, `src/lib/import.ts`) is stateless and runs in two modes:
+  - `preview` parses and validates, and returns a summary without writing anything.
+  - `commit` re-parses, then streams NDJSON progress lines (`tmdb` → `posters` → `saving`) followed by a result. Everything is inserted in a single transaction.
+- **How rows become movies:**
+  - Header aliases cover common spreadsheet, Letterboxd and CLZ names. A `Letterboxd URI` column means ratings are doubled and rows are marked watched.
+  - Format cells are normalized. Explicit combo separators (`4K + Blu-ray`) are split before whole-cell matching, because "4K Blu-ray" is the single 4K format.
+  - Rows are grouped into one movie by TMDB id, or by lowercase title + year + list.
+  - Every movie is validated with the same `movieInputSchema` the form uses.
+  - Bad rows are skipped individually and listed with their row numbers.
+- **TMDB enrichment** only fills blank fields and never overwrites values from the file. Imported posters are cached locally the same way as posters saved from the form.
+- **Stats** (`src/components/collection-stats.tsx`) calls `await connection()` before reading the DB. Without it, the stats would be baked into the prerendered shell at build time. The chart color is the single validated hue in the `--chart-bar` / `--chart-track` tokens in `globals.css`.
 
 ## Forms
 

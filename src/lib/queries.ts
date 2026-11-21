@@ -48,6 +48,82 @@ export async function listMovies(query: Omit<CollectionQuery, "layout">): Promis
   });
 }
 
+/**
+ * A movie already in the collection that is the same film: same TMDB id, or
+ * same title (case-insensitive) with a matching or unknown release year.
+ */
+export function findExistingFilm(title: string, releaseYear: number | null, tmdbId: number | null) {
+  return db
+    .select({ id: movies.id, title: movies.title, isWishlist: movies.isWishlist })
+    .from(movies)
+    .where(
+      or(
+        tmdbId == null ? undefined : eq(movies.tmdbId, tmdbId),
+        and(
+          sql`${movies.title} = ${title} COLLATE NOCASE`,
+          releaseYear == null
+            ? undefined
+            : or(sql`${movies.releaseYear} IS NULL`, eq(movies.releaseYear, releaseYear)),
+        ),
+      ),
+    )
+    .get();
+}
+
+export type CollectionStats = {
+  owned: number;
+  wishlist: number;
+  ownedCopies: number;
+  watched: number;
+  inProgress: number;
+  /** Sum of recorded purchase prices (owned copies only), in cents. */
+  spentCents: number;
+  /** Copies that have a recorded price. */
+  pricedCopies: number;
+  /** Owned copies per format, largest first. */
+  formats: { format: string; count: number }[];
+};
+
+export async function getCollectionStats(): Promise<CollectionStats> {
+  const m = db
+    .select({
+      owned: sql<number>`COALESCE(SUM(${movies.isWishlist} = 0), 0)`,
+      wishlist: sql<number>`COALESCE(SUM(${movies.isWishlist} = 1), 0)`,
+      watched: sql<number>`COALESCE(SUM(${movies.isWishlist} = 0 AND ${movies.watchStatus} = 'watched'), 0)`,
+      inProgress: sql<number>`COALESCE(SUM(${movies.isWishlist} = 0 AND ${movies.watchStatus} = 'in_progress'), 0)`,
+    })
+    .from(movies)
+    .get()!;
+  const c = db
+    .select({
+      copies: count(),
+      spent: sql<number>`COALESCE(SUM(${copies.priceCents}), 0)`,
+      priced: count(copies.priceCents),
+    })
+    .from(copies)
+    .innerJoin(movies, eq(movies.id, copies.movieId))
+    .where(eq(movies.isWishlist, false))
+    .get()!;
+  const formats = db
+    .select({ format: copies.format, count: count() })
+    .from(copies)
+    .innerJoin(movies, eq(movies.id, copies.movieId))
+    .where(eq(movies.isWishlist, false))
+    .groupBy(copies.format)
+    .orderBy(desc(count()), copies.format)
+    .all();
+  return {
+    owned: m.owned,
+    wishlist: m.wishlist,
+    ownedCopies: c.copies,
+    watched: m.watched,
+    inProgress: m.inProgress,
+    spentCents: c.spent,
+    pricedCopies: c.priced,
+    formats,
+  };
+}
+
 /** Distinct values present in the collection, for the filter dropdowns. */
 export async function getFilterOptions(view: CollectionQuery["view"]) {
   const wishlist = view === "wishlist" ? 1 : 0;
