@@ -67,6 +67,12 @@ export const copies = sqliteTable(
     /** Price paid, stored in cents to avoid floating point issues. */
     priceCents: integer("price_cents"),
     condition: text("condition"),
+    /** Where this copy lives, e.g. "Shelf B3" (free text). */
+    location: text("location"),
+    /** Who this copy is lent to; null when it's at home. */
+    loanedTo: text("loaned_to"),
+    /** ISO date (YYYY-MM-DD) the loan started. Only set while loanedTo is. */
+    loanedOn: text("loaned_on"),
   },
   (t) => [index("copies_movie_id_idx").on(t.movieId)],
 );

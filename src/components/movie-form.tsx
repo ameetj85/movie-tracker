@@ -36,6 +36,9 @@ const emptyCopy = (format = ""): CopyValues => ({
   purchaseDate: "",
   price: "",
   condition: "",
+  location: "",
+  loanedTo: "",
+  loanedOn: "",
 });
 
 function toFormValues(movie?: MovieWithCopies): MovieFormValues {
@@ -77,6 +80,9 @@ function toFormValues(movie?: MovieWithCopies): MovieFormValues {
       purchaseDate: c.purchaseDate ?? "",
       price: c.priceCents == null ? "" : (c.priceCents / 100).toFixed(2),
       condition: c.condition ?? "",
+      location: c.location ?? "",
+      loanedTo: c.loanedTo ?? "",
+      loanedOn: c.loanedOn ?? "",
     })),
   };
 }
@@ -420,6 +426,31 @@ export function MovieForm({ action, movie, submitLabel, cancelHref, tmdbEnabled 
                           ))}
                         </SelectContent>
                       </Select>
+                    </Field>
+                    <Field label="Location" htmlFor={`location-${i}`} error={errors[`copies.${i}.location`]}>
+                      <Input
+                        id={`location-${i}`}
+                        placeholder="e.g. Shelf B3"
+                        value={copy.location ?? ""}
+                        onChange={(e) => setCopy(i, { location: e.target.value })}
+                      />
+                    </Field>
+                    <Field label="Loaned to" htmlFor={`loanedTo-${i}`} error={errors[`copies.${i}.loanedTo`]}>
+                      <Input
+                        id={`loanedTo-${i}`}
+                        placeholder="Who has it?"
+                        value={copy.loanedTo ?? ""}
+                        onChange={(e) => setCopy(i, { loanedTo: e.target.value })}
+                      />
+                    </Field>
+                    <Field label="Loaned on" htmlFor={`loanedOn-${i}`} error={errors[`copies.${i}.loanedOn`]}>
+                      <DatePicker
+                        id={`loanedOn-${i}`}
+                        value={copy.loanedTo?.trim() ? (copy.loanedOn ?? "") : ""}
+                        onChange={(v) => setCopy(i, { loanedOn: v })}
+                        placeholder={copy.loanedTo?.trim() ? "Pick a date" : "Not on loan"}
+                        disabled={!copy.loanedTo?.trim()}
+                      />
                     </Field>
                   </div>
                 )}
