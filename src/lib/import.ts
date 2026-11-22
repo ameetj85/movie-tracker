@@ -6,6 +6,7 @@ import Papa from "papaparse";
 
 import { db } from "@/db";
 import { copies, movies } from "@/db/schema";
+import { createBackup } from "@/lib/backup";
 import { FORMATS, type WatchStatus } from "@/lib/constants";
 import {
   cleanPrice,
@@ -169,6 +170,11 @@ export function planImport(text: string, options: ImportOptions): ImportPlan | {
       purchaseDate = parseDate(get("purchase_date")) ?? "";
       if (!purchaseDate) warn(`Ignored unreadable purchase date "${get("purchase_date")}".`);
     }
+    let loanedOn = "";
+    if (get("loaned_on")) {
+      loanedOn = parseDate(get("loaned_on")) ?? "";
+      if (!loanedOn) warn(`Ignored unreadable loan date "${get("loaned_on")}".`);
+    }
     const price = get("price") ? cleanPrice(get("price")) : "";
     const rowCopies = formats.map((format, idx) => ({
       format,
@@ -177,6 +183,10 @@ export function planImport(text: string, options: ImportOptions): ImportPlan | {
       // A combo pack's price belongs to the pack, so record it once.
       price: idx === 0 ? price : "",
       condition: get("condition"),
+      // A combo pack sits on one shelf and is lent out as one item.
+      location: get("location"),
+      loanedTo: get("loaned_to"),
+      loanedOn,
     }));
 
     const key = tmdbId
@@ -365,6 +375,14 @@ export async function commitImport(
   );
 
   onProgress({ phase: "saving", done: 0, total: items.length });
+  // Snapshot the collection first, so a bad import can be rolled back by hand.
+  if (db.$client.prepare("SELECT 1 FROM movies LIMIT 1").get()) {
+    try {
+      await createBackup("pre-import");
+    } catch (err) {
+      console.error("Pre-import backup failed:", err);
+    }
+  }
   let copyCount = 0;
   db.transaction((tx) => {
     for (const { input: m, createdAt } of items) {
@@ -398,6 +416,9 @@ export async function commitImport(
               purchaseDate: c.purchaseDate,
               priceCents: c.price,
               condition: c.condition,
+              location: c.location,
+              loanedTo: c.loanedTo,
+              loanedOn: c.loanedOn,
             })),
           )
           .run();

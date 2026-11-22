@@ -4,15 +4,16 @@ import { LayoutGridIcon, ListIcon, XIcon } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useTransition } from "react";
 
+import { SurpriseMeButton } from "@/components/surprise-me-button";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectSeparator, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { DIGITAL_FILTER, SORTS, type CollectionQuery } from "@/lib/collection-params";
+import { DIGITAL_FILTER, LOANED_FILTER, SORTS, type CollectionQuery } from "@/lib/collection-params";
 import { FORMATS, WATCH_STATUS_LABELS, WATCH_STATUSES } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 
 type FilterBarProps = {
   query: CollectionQuery;
-  options: { genres: string[]; decades: number[]; formats: string[] };
+  options: { genres: string[]; decades: number[]; formats: string[]; locations: string[]; anyLoaned: boolean };
 };
 
 const ALL = "__all";
@@ -52,7 +53,18 @@ export function FilterBar({ query, options }: FilterBarProps) {
     ...Object.fromEntries(decades.map((d) => [String(d), `${d}s`])),
   };
 
-  const active = Boolean(query.format || query.genre || query.status || query.decade);
+  const locations =
+    query.location && query.location !== LOANED_FILTER && !options.locations.includes(query.location)
+      ? [query.location, ...options.locations]
+      : options.locations;
+  const showLoaned = options.anyLoaned || query.location === LOANED_FILTER;
+  const locationItems: Record<string, string> = {
+    [ALL]: "Any location",
+    [LOANED_FILTER]: "On loan",
+    ...Object.fromEntries(locations.map((l) => [l, l])),
+  };
+
+  const active = Boolean(query.format || query.genre || query.status || query.decade || query.location);
 
   return (
     <div
@@ -126,11 +138,30 @@ export function FilterBar({ query, options }: FilterBarProps) {
         ))}
       </FilterSelect>
 
+      {query.view === "owned" && (locations.length > 0 || showLoaned) && (
+        <FilterSelect
+          label="Location"
+          items={locationItems}
+          value={query.location ?? ALL}
+          onChange={(v) => update({ location: v })}
+          active={!!query.location}
+        >
+          <SelectItem value={ALL}>Any location</SelectItem>
+          {showLoaned && <SelectItem value={LOANED_FILTER}>On loan</SelectItem>}
+          {locations.length > 0 && <SelectSeparator />}
+          {locations.map((l) => (
+            <SelectItem key={l} value={l}>
+              {l}
+            </SelectItem>
+          ))}
+        </FilterSelect>
+      )}
+
       {active && (
         <Button
           variant="ghost"
           size="sm"
-          onClick={() => update({ format: null, genre: null, status: null, decade: null })}
+          onClick={() => update({ format: null, genre: null, status: null, decade: null, location: null })}
         >
           <XIcon />
           Clear filters
@@ -138,6 +169,7 @@ export function FilterBar({ query, options }: FilterBarProps) {
       )}
 
       <div className="ml-auto flex items-center gap-2">
+        {query.view === "owned" && <SurpriseMeButton />}
         <FilterSelect
           label="Sort by"
           items={SORTS}

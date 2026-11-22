@@ -25,28 +25,40 @@ const optionalInt = (min: number, max: number, label: string) =>
       return n;
     });
 
-const copySchema = z.object({
-  format: z.string().trim().min(1, "Choose a format").max(50),
-  edition: optionalText(100),
-  purchaseDate: z
-    .string()
-    .trim()
-    .refine((v) => v === "" || /^\d{4}-\d{2}-\d{2}$/.test(v), "Use YYYY-MM-DD")
-    .transform((v) => (v === "" ? null : v)),
-  price: z
-    .string()
-    .trim()
-    .transform((v, ctx) => {
-      if (v === "") return null;
-      const n = Number(v.replace(/^\$/, ""));
-      if (!Number.isFinite(n) || n < 0 || n > 100_000) {
-        ctx.addIssue({ code: "custom", message: "Enter a valid price" });
-        return z.NEVER;
-      }
-      return Math.round(n * 100);
-    }),
-  condition: optionalText(50),
-});
+/** Optional YYYY-MM-DD date ("" → null). */
+const optionalDate = z
+  .string()
+  .trim()
+  .refine((v) => v === "" || /^\d{4}-\d{2}-\d{2}$/.test(v), "Use YYYY-MM-DD")
+  .transform((v) => (v === "" ? null : v));
+
+export const copySchema = z
+  .object({
+    format: z.string().trim().min(1, "Choose a format").max(50),
+    edition: optionalText(100),
+    purchaseDate: optionalDate,
+    price: z
+      .string()
+      .trim()
+      .transform((v, ctx) => {
+        if (v === "") return null;
+        const n = Number(v.replace(/^\$/, ""));
+        if (!Number.isFinite(n) || n < 0 || n > 100_000) {
+          ctx.addIssue({ code: "custom", message: "Enter a valid price" });
+          return z.NEVER;
+        }
+        return Math.round(n * 100);
+      }),
+    condition: optionalText(50),
+    location: optionalText(100).optional().transform((v) => v ?? null),
+    loanedTo: optionalText(100).optional().transform((v) => v ?? null),
+    loanedOn: optionalDate.optional().transform((v) => v ?? null),
+  })
+  // A loan date without a borrower is meaningless: drop it.
+  .transform((c) => (c.loanedTo ? c : { ...c, loanedOn: null }));
+
+export type CopyFormValues = z.input<typeof copySchema>;
+export type CopyInput = z.output<typeof copySchema>;
 
 export const movieInputSchema = z
   .object({

@@ -1,10 +1,11 @@
 import Link from "next/link";
 
-import { FormatBadges, Rating, WatchStatusBadge } from "@/components/movie-meta";
+import { FormatBadges, OnLoanBadge, Rating, WatchStatusBadge } from "@/components/movie-meta";
 import { Poster } from "@/components/poster";
 import type { MovieWithCopies } from "@/db/schema";
 
 export function MovieCard({ movie }: { movie: MovieWithCopies }) {
+  const loanedTo = movie.copies.find((c) => c.loanedTo)?.loanedTo;
   return (
     <Link
       href={`/movies/${movie.id}`}
@@ -26,9 +27,10 @@ export function MovieCard({ movie }: { movie: MovieWithCopies }) {
           </div>
         </div>
         <FormatBadges formats={movie.copies.map((c) => c.format)} short />
-        {!movie.isWishlist && movie.watchStatus !== "unwatched" && (
-          <div>
-            <WatchStatusBadge status={movie.watchStatus} />
+        {!movie.isWishlist && (movie.watchStatus !== "unwatched" || loanedTo) && (
+          <div className="flex flex-wrap gap-1">
+            {movie.watchStatus !== "unwatched" && <WatchStatusBadge status={movie.watchStatus} />}
+            {loanedTo && <OnLoanBadge to={loanedTo} />}
           </div>
         )}
       </div>

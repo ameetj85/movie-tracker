@@ -1,6 +1,8 @@
 import { FileJsonIcon, FileSpreadsheetIcon } from "lucide-react";
 import type { Metadata } from "next";
+import { Suspense } from "react";
 
+import { BackupsPanel, BackupsPanelSkeleton } from "@/components/backups-panel";
 import { ImportWizard } from "@/components/import-wizard";
 import { buttonVariants } from "@/components/ui/button";
 import { CSV_COLUMNS } from "@/lib/csv-format";
@@ -60,6 +62,19 @@ export default function DataPage() {
           </div>
         </details>
         <ImportWizard tmdbEnabled={isTmdbConfigured()} />
+      </section>
+
+      <section className="flex flex-col gap-3 rounded-2xl border border-primary/10 bg-card p-5 shadow-sm shadow-primary/5 transition-shadow duration-300 hover:shadow-md hover:shadow-primary/10">
+        <div>
+          <h2 className="text-base font-semibold">Backups</h2>
+          <p className="text-sm text-muted-foreground">
+            The database is backed up automatically at most once a day, just before a change is saved, and
+            always before an import. The 14 most recent backups are kept.
+          </p>
+        </div>
+        <Suspense fallback={<BackupsPanelSkeleton />}>
+          <BackupsPanel />
+        </Suspense>
       </section>
     </div>
   );
