@@ -1,5 +1,11 @@
+import path from "node:path";
+
 import type { APIRequestContext, Page } from "@playwright/test";
 import { expect } from "@playwright/test";
+
+/** The account created by auth.setup.ts; its session is shared by every test. */
+export const E2E_USER = { name: "E2E Tester", email: "e2e@example.com", password: "e2e-password-123" };
+export const STORAGE_STATE = path.join(process.env.E2E_DATA_DIR ?? "test-results", "auth-state.json");
 
 /** Import movies through the real CSV import endpoint (fast seeding). */
 export async function importCsv(request: APIRequestContext, csv: string) {

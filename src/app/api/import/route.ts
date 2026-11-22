@@ -2,6 +2,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { FORMATS } from "@/lib/constants";
+import { getCurrentUser } from "@/lib/auth";
 import { commitImport, MAX_IMPORT_BYTES, planImport, type ImportOptions } from "@/lib/import";
 import { isTmdbConfigured } from "@/lib/tmdb";
 
@@ -65,6 +66,9 @@ export async function POST(req: Request) {
     return Response.json({ error: "Invalid request body." }, { status: 400 });
   }
 
+  const user = await getCurrentUser();
+  if (!user) return Response.json({ error: "Sign in required." }, { status: 401 });
+
   const options: ImportOptions = body.options;
   const plan = planImport(body.csv, options);
   if ("fatal" in plan) return Response.json({ error: plan.fatal }, { status: 422 });
@@ -76,7 +80,7 @@ export async function POST(req: Request) {
     async start(controller) {
       const send = (obj: unknown) => controller.enqueue(encoder.encode(JSON.stringify(obj) + "\n"));
       try {
-        const result = await commitImport(plan, options, (p) => send({ type: "progress", ...p }));
+        const result = await commitImport(plan, options, (p) => send({ type: "progress", ...p }), user.id);
         revalidatePath("/", "layout");
         send({ type: "result", ...result });
       } catch (e) {

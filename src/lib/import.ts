@@ -332,6 +332,8 @@ export async function commitImport(
   plan: ImportPlan,
   options: ImportOptions,
   onProgress: (p: ImportProgress) => void,
+  /** The signed-in account that owns the imported movies (null in tests). */
+  ownerId: number | null,
 ): Promise<ImportResult> {
   let items = plan.movies.map((m) => ({ ...m }));
   let matchedOnTmdb = 0;
@@ -393,6 +395,7 @@ export async function commitImport(
       const row = tx
         .insert(movies)
         .values({
+          userId: ownerId,
           tmdbId: m.tmdbId,
           title: m.title,
           releaseYear: m.releaseYear,

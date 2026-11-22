@@ -75,7 +75,35 @@ There are two ways to run it:
 
 Then open **http://localhost:3000** in your browser. Leave the terminal window open while you use the app; closing it stops Movie Vault.
 
-The first time it starts, Movie Vault creates its database file (`movies.db`) in the project folder. There's nothing else to set up.
+The first time it starts, Movie Vault creates its database file (`movies.db`) in the project folder.
+
+### Your account
+
+Movie Vault asks you to sign in. The first time you open it, it takes you to **Create account**. Enter your email, a password of at least 8 characters, and optionally a name to show in the header.
+
+- **Sign-up closes after the first account**, so other people on your network can't let themselves in. To let someone else create an account, add `AUTH_ALLOW_SIGNUP=true` to `.env.local` and restart.
+- Everyone who signs in sees the same collection. Movie Vault remembers which account added each movie, but doesn't yet hide other accounts' movies.
+- **Signing out:** use the exit icon at the right of the header. You stay signed in for 30 days otherwise.
+- **Wrong password five times** locks the account for 15 minutes. You can reset the password in the meantime.
+
+### Forgotten password
+
+Click **Forgot password?** on the sign-in page and enter your email. Movie Vault emails a link that works once and expires after an hour. Using it signs you out on every other device.
+
+Movie Vault needs an email server to send the link. Add your provider's SMTP settings to `.env.local`:
+
+```
+SMTP_HOST=smtp.example.com
+SMTP_PORT=587
+SMTP_USER=you@example.com
+SMTP_PASS=your-app-password
+EMAIL_FROM=Movie Vault <you@example.com>
+APP_URL=http://localhost:3000
+```
+
+Set `APP_URL` to the address you open Movie Vault at, for example `http://192.168.1.20:3000` if you use it from other devices. The emailed link starts with this address.
+
+**Without SMTP settings**, nothing is emailed. The message, link included, is printed in the terminal window running Movie Vault, so you can copy the link from there.
 
 ---
 
@@ -432,6 +460,8 @@ Use the **sun/moon switch** at the top right. Movie Vault remembers your choice 
 | **A poster is missing** | The download may have failed when you saved. Open the movie and use **Refresh from TMDB**, or run **Refresh all from TMDB**. |
 | **The page won't load at localhost:3000** | Make sure Movie Vault is running in a terminal (`npm start` or `npm run dev`). Another program may be using port 3000; the terminal shows the address it chose. |
 | **Something looks wrong after updating Movie Vault** | Stop it, run `npm install`, then `npm run build` (for `npm start`), and start it again. Database updates apply automatically when it starts. |
+| **The password reset email never arrives** | Check your spam folder. If `SMTP_HOST` isn't set, the link is printed in the terminal instead ([section 1](#forgotten-password)). If it is set, the terminal shows the SMTP error. |
+| **"Sign-up is closed"** | The vault already has an account. Sign in with it, or set `AUTH_ALLOW_SIGNUP=true` in `.env.local` and restart. |
 | **I deleted something by mistake** | Restore the most recent backup from before the deletion ([section 14](#14-backups-and-restoring)). Anything added after that backup is lost, so export first if you need it. |
 
 ---
@@ -466,7 +496,9 @@ New / Sealed · Like New · Good · Fair · Poor
 
 ### Privacy
 
-Movie Vault has no accounts and sends no usage data. It only contacts:
+Accounts are stored only in your local `movies.db`. Passwords are stored as one-way hashes, never as text. Movie Vault sends no usage data. It only contacts:
+
+- **Your email server:** only to send password reset emails, and only if you set `SMTP_HOST`.
 
 - **TMDB:** search text and movie IDs, when you use TMDB features. Poster images are downloaded from TMDB's image server.
 - **UPCitemdb:** only the barcode number, when you click **Look up**.

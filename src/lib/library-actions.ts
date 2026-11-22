@@ -6,6 +6,7 @@ import { z } from "zod";
 
 import { db } from "@/db";
 import { movies, viewings } from "@/db/schema";
+import { requireUser } from "@/lib/auth";
 import { backupIfDue } from "@/lib/backup";
 import { WATCH_STATUSES } from "@/lib/constants";
 import { deletePosterIfUnused } from "@/lib/poster-cleanup";
@@ -148,6 +149,7 @@ export async function refreshMovieFromTmdb(movieId: number): Promise<ActionResul
 
 /** Franchise page: add a film you don't have to the wishlist, filled in from TMDB. */
 export async function addToWishlistFromTmdb(tmdbId: number): Promise<ActionResult> {
+  const user = await requireUser();
   if (!isTmdbConfigured()) return fail("TMDB isn't configured.");
   if (!Number.isInteger(tmdbId) || tmdbId <= 0) return fail("Invalid TMDB id.");
   const existing = db.select({ id: movies.id }).from(movies).where(eq(movies.tmdbId, tmdbId)).get();
@@ -168,6 +170,7 @@ export async function addToWishlistFromTmdb(tmdbId: number): Promise<ActionResul
         runtime: d.runtime,
         posterUrl,
         isWishlist: true,
+        userId: user.id,
         tmdbCollectionId: d.collection?.id ?? null,
         tmdbCollectionName: d.collection?.name ?? null,
       })
