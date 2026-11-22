@@ -9,6 +9,7 @@ import { copies, movies } from "@/db/schema";
 import { deletePosterIfUnused } from "@/lib/poster-cleanup";
 import { cachePoster } from "@/lib/posters";
 import { findDuplicates, getMovie, type DuplicateMatch } from "@/lib/queries";
+import { requireUser } from "@/lib/auth";
 import { backupIfDue, createBackup } from "@/lib/backup";
 import {
   copySchema,
@@ -103,6 +104,7 @@ function formatsToCheckOnEdit(existing: { title: string; tmdbId: number | null; 
 }
 
 export async function createMovie(_prev: MovieFormState, formData: FormData): Promise<MovieFormState> {
+  const user = await requireUser();
   const parsed = parseForm(formData);
   if (!parsed.ok) return parsed.state;
   const { data, confirmDuplicate } = parsed;
@@ -117,7 +119,11 @@ export async function createMovie(_prev: MovieFormState, formData: FormData): Pr
 
   await backupIfDue();
   const id = db.transaction((tx) => {
-    const row = tx.insert(movies).values(movieValues(data, posterUrl)).returning({ id: movies.id }).get();
+    const row = tx
+      .insert(movies)
+      .values({ ...movieValues(data, posterUrl), userId: user.id })
+      .returning({ id: movies.id })
+      .get();
     if (data.copies.length) tx.insert(copies).values(copyValues(row.id, data)).run();
     return row.id;
   });

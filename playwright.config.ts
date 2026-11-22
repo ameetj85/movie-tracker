@@ -43,6 +43,15 @@ export default defineConfig({
     viewport: { width: 1280, height: 900 },
     trace: "retain-on-failure",
   },
+  projects: [
+    // Signs up the first user and saves the session cookie (see e2e/auth.setup.ts).
+    { name: "setup", testMatch: /auth\.setup\.ts/ },
+    {
+      name: "app",
+      dependencies: ["setup"],
+      use: { storageState: path.join(dataDir, "auth-state.json") },
+    },
+  ],
   webServer: {
     command: `npm run build && npx next start -p ${PORT}`,
     url: `http://localhost:${PORT}`,

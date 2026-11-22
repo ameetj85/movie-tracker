@@ -63,7 +63,7 @@ describe("CSV export → import → export", () => {
     const plan = planImport(first, OPTIONS);
     if ("fatal" in plan) throw new Error(plan.fatal);
     expect(plan.issues.filter((i) => i.level === "error")).toEqual([]);
-    await commitImport(plan, OPTIONS, () => {});
+    await commitImport(plan, OPTIONS, () => {}, null);
 
     const second = await exportCsv();
     expect(second).toBe(first);

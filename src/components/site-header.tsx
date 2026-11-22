@@ -1,8 +1,10 @@
 import { ArrowDownUpIcon, FilmIcon, LayersIcon, PlusIcon } from "lucide-react";
 import Link from "next/link";
+import { Suspense } from "react";
 
 import { ThemeToggle } from "@/components/theme-toggle";
 import { buttonVariants } from "@/components/ui/button";
+import { UserMenu } from "@/components/user-menu";
 
 export function SiteHeader() {
   return (
@@ -41,6 +43,10 @@ export function SiteHeader() {
             <span className="hidden sm:inline">Add movie</span>
           </Link>
           <ThemeToggle className="ml-2" />
+          {/* Reads the session cookie, so it streams in after the static header. */}
+          <Suspense>
+            <UserMenu />
+          </Suspense>
         </nav>
       </div>
     </header>

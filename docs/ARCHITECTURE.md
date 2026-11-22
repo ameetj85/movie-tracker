@@ -145,6 +145,12 @@ All external calls are made **from the server**. The browser never sees the TMDB
 | `posters.ts` / `poster-cleanup.ts` | Download and cache posters; delete unreferenced files | server-only |
 | `backup.ts` | Online SQLite backups, retention | server-only |
 | `format.ts`, `params.ts`, `utils.ts` | Display formatting, route param parsing, `cn` | shared |
+| `session.ts` | Create, validate (sliding expiry) and revoke DB sessions; token hashing; cookie options. No `next/headers`, so the proxy can use it. | server-only |
+| `auth.ts` | Request-scoped auth: `getCurrentUser()`, `requireUser()`, `startSession()`, `appBaseUrl()` | server-only |
+| `auth-service.ts` | Account logic without cookies: register, authenticate + lockout, request/redeem password reset | server-only |
+| `auth-actions.ts` | Server Actions for the auth pages | server |
+| `auth-validation.ts` | Zod schemas for auth forms, `safeNextPath()` | shared |
+| `password.ts` / `email.ts` | scrypt hashing / SMTP via nodemailer (console fallback) | server-only |
 
 ---
 
@@ -196,6 +202,9 @@ export default function Page({ searchParams }: PageProps<"/">) {
 | `/franchises` | Streamed | Franchises the vault touches |
 | `/franchises/[id]` | Streamed (TMDB fetch at request time) | Franchise parts: owned, wishlist, missing |
 | `/data` | Static (+ streamed backups list) | Export, import wizard, TMDB refresh, backups |
+| `/login`, `/signup` | Streamed | Sign in (redirects to `/signup` when there are no accounts) / create an account |
+| `/forgot-password` | Static | Request a reset email |
+| `/reset-password?token=` | Streamed | Choose a new password (`Referrer-Policy: no-referrer`) |
 
 ### Route handlers
 
@@ -222,6 +231,8 @@ export default function Page({ searchParams }: PageProps<"/">) {
 | `bulkUpdate(ids, op)` | Select mode | `status` / `addTag` / `removeTag` / `delete` |
 | `refreshMovieFromTmdb` | Movie page | `syncMovieFromTmdb(…, "overwrite")` |
 | `addToWishlistFromTmdb` | Franchise page | Insert a wishlist movie from TMDB details |
+| `signUp`, `signIn`, `signOut` | Auth pages, header | Create account / check password (with lockout), set or clear the session cookie, redirect |
+| `forgotPassword`, `completePasswordReset` | Auth pages | Email a reset link / redeem it, then sign in |
 
 ---
 
@@ -250,6 +261,7 @@ erDiagram
     text tags "JSON string[]"
     integer tmdb_collection_id "franchise"
     text tmdb_collection_name
+    integer user_id FK "owner, nullable"
     text created_at "CURRENT_TIMESTAMP"
     text updated_at
   }
@@ -275,6 +287,49 @@ erDiagram
 ```
 
 **Indexes:** `movies(title)`, `movies(is_wishlist)`, `movies(tmdb_collection_id)`, `copies(movie_id)`, `copies(upc)`, `viewings(movie_id)`, `viewings(watched_on)`.
+
+**Accounts** (migration `0003_auth`) are linked to the collection by `movies.user_id` (migration `0004_movie_owner`, nullable, `ON DELETE SET NULL` so deleting an account never deletes movies). Every insert path sets it to the signed-in user; reads are not filtered by it yet.
+
+```mermaid
+erDiagram
+  users ||--o{ sessions : "signed in (ON DELETE CASCADE)"
+  users ||--o{ password_reset_tokens : "reset links (ON DELETE CASCADE)"
+
+  users {
+    integer id PK
+    text email "UNIQUE, lower-cased"
+    text name "display name, nullable"
+    integer is_admin "boolean, default false"
+    text password_hash "scrypt$N$r$p$salt$hash"
+    text email_verified_at "set by a completed reset"
+    text last_login_at
+    text password_changed_at
+    integer failed_login_attempts "default 0"
+    text locked_until
+    text created_at
+    text updated_at
+  }
+  sessions {
+    text id PK "SHA-256 of the cookie token"
+    integer user_id FK
+    text expires_at
+    text last_seen_at
+    text user_agent
+    text ip_address
+    text created_at
+  }
+  password_reset_tokens {
+    integer id PK
+    integer user_id FK
+    text token_hash "UNIQUE, SHA-256"
+    text expires_at
+    text used_at "null until redeemed or superseded"
+    text requested_ip
+    text created_at
+  }
+```
+
+Timestamps the auth code sets itself (`expires_at`, `last_login_at`, `locked_until`, …) are ISO 8601 strings from `toISOString()`. `created_at` and `updated_at` use `CURRENT_TIMESTAMP`, like the other tables.
 
 ### Why the schema differs from the spec
 
@@ -531,7 +586,16 @@ The primitives are generated, but owned by the repo and safe to edit.
 
 ## 15. Security and privacy
 
-- **No authentication.** The app assumes a trusted single user. **`next start` and `next dev` listen on all network interfaces**, so anyone on the same network can open it. Run it on a trusted network, or bind to localhost (`next start -H 127.0.0.1`) if that matters.
+- **Authentication (email + password).** Every route except `/login`, `/signup`, `/forgot-password` and `/reset-password` requires a session. That covers pages, API routes, posters and Server Actions.
+  - **Gate:** `src/proxy.ts` runs on the Node runtime and validates the session cookie against the `sessions` table on every request. Unauthenticated page requests redirect to `/login?next=…` (`safeNextPath` allows only local paths). API requests get a 401.
+  - **Movies record their owner** (`movies.user_id`) but aren't filtered by it yet. Every signed-in user sees the same collection.
+  - **Passwords:** hashed with Node's built-in scrypt (`password.ts`, N=2^15, per-user salt). The parameters are stored in the hash string so they can be raised later.
+  - **Brute force:** 5 failed sign-ins lock the account for 15 minutes. Unknown emails are checked against a dummy hash, so timing doesn't reveal which accounts exist.
+  - **Sessions:** the httpOnly `mv_session` cookie (`SameSite=Lax`, `Secure` when `APP_URL` is https) holds a random 256-bit token. Only its SHA-256 hash is stored. Sessions last 30 days and slide forward at most once a day.
+  - **Password reset:** links expire after 1 hour and work once. Only the token hash is stored, and issuing a new link supersedes older ones. Repeat requests within 60 s are ignored. Completing a reset signs the account out everywhere.
+  - **Reset emails:** the forgot-password form gives the same answer whether or not the email exists. Links use `APP_URL`, never the request's Host header, which could be forged to send the link to another site.
+  - **Sign-up:** open only until the first account exists, unless `AUTH_ALLOW_SIGNUP=true`.
+  - **Network exposure:** **`next start` and `next dev` listen on all network interfaces.** Bind to localhost (`next start -H 127.0.0.1`) if the vault shouldn't be reachable from other devices at all.
 - **Secrets:** TMDB credentials live in `.env.local` (gitignored) and are only read by `server-only` modules. The v4 token is sent as a header, never in URLs.
 - **Outbound data:** only search text and movie IDs to TMDB, and only barcode digits to UPCitemdb. No telemetry.
 - **Input validation:**
@@ -561,6 +625,7 @@ The primitives are generated, but owned by the repo and safe to edit.
 ### E2E setup
 
 - `playwright.config.ts` runs `npm run build && next start -p 3200` against a temp DB. TMDB is disabled by defining the variables as empty strings: Next's env loader only fills *undefined* vars, so empty beats `.env.local`.
+- Every route needs a session, so a `setup` project (`e2e/auth.setup.ts`) signs up the first account through the UI and saves its cookie. The `app` project reuses it through `storageState`, and so does the `request` fixture. Tests that sign out use their own browser context, so they don't revoke the shared session.
 - Tests share one server, so each test uses unique titles. Seeding uses the real import endpoint.
 - Locate elements by role and label. On pages where Next keeps a previous page mounted, add `.filter({ visible: true })`.
 - The e2e run leaves `.next` built without TMDB; rebuild before `npm start`.
@@ -580,6 +645,10 @@ TMDB and UPCitemdb themselves aren't exercised by the automated suites: their re
 | `BACKUP_DIR` | `data/backups` | Backup folder |
 | `BACKUP_KEEP` | `14` | Backups to keep |
 | `BACKUP_INTERVAL_HOURS` | `24` | Minimum time between automatic backups |
+| `APP_URL` | `http://localhost:3000` | Public base URL for links in emails. An `https://` value also makes the session cookie `Secure`. |
+| `AUTH_ALLOW_SIGNUP` | — | `true` keeps sign-up open after the first account |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_SECURE` | —, `587` | SMTP server for password reset emails. Without `SMTP_HOST`, emails are printed to the server console. |
+| `EMAIL_FROM` | `Movie Vault <no-reply@localhost>` | Sender address |
 | `E2E_PORT`, `PW_CHANNEL` | `3200`, `msedge` | Playwright server port and browser channel |
 
 ### Commands
