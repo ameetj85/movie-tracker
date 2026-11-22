@@ -34,3 +34,6 @@ export const EDITION_SUGGESTIONS = [
 export const CURRENCY = "USD";
 
 export const CONDITIONS = ["New / Sealed", "Like New", "Good", "Fair", "Poor"] as const;
+
+/** id of the <datalist> of existing tags, rendered by <TagSuggestions> on the add/edit pages. */
+export const TAG_SUGGESTIONS_ID = "tag-suggestions";

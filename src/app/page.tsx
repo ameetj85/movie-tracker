@@ -3,19 +3,19 @@ import Link from "next/link";
 import { connection } from "next/server";
 import { Suspense } from "react";
 
+import { CollectionResults } from "@/components/collection-results";
 import { CollectionStats, CollectionStatsSkeleton } from "@/components/collection-stats";
 import { FilterBar } from "@/components/filter-bar";
-import { MovieCard } from "@/components/movie-card";
-import { MovieTable } from "@/components/movie-table";
 import { SearchInput } from "@/components/search-input";
 import { TopRatedCarousel } from "@/components/top-rated-carousel";
 import { buttonVariants } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { hasFilters, parseCollectionQuery, type CollectionQuery } from "@/lib/collection-params";
-import { getCollectionCounts, getFilterOptions, getTopRated, listMovies } from "@/lib/queries";
+import { hasFilters, PAGE_SIZE, parseCollectionQuery, type CollectionQuery } from "@/lib/collection-params";
+import { countMovies, getCollectionCounts, getFilterOptions, getTopRated, listMovies } from "@/lib/queries";
 import { cn } from "@/lib/utils";
 
-const GRID = "grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6";
+// Loading skeleton grid; keep in sync with the grid in src/components/collection-results.tsx.
+const GRID ="grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6";
 
 export default function HomePage({ searchParams }: PageProps<"/">) {
   return (
@@ -59,11 +59,17 @@ async function Collection({ searchParams }: Pick<PageProps<"/">, "searchParams">
   const raw = await searchParams;
   const query = parseCollectionQuery(raw);
 
-  const [movies, counts, options] = await Promise.all([
-    listMovies(query),
+  const [movies, matched, counts, options] = await Promise.all([
+    listMovies(query, query.show),
+    countMovies(query),
     getCollectionCounts(),
     getFilterOptions(query.view),
   ]);
+
+  // "Show more" keeps every current param and asks for one more page.
+  const moreParams = new URLSearchParams();
+  for (const [k, v] of Object.entries(raw)) if (typeof v === "string") moreParams.set(k, v);
+  moreParams.set("show", String(query.show + PAGE_SIZE));
 
   // Switching tabs keeps search/sort/layout but drops filters that may not apply.
   const tabHref = (v: CollectionQuery["view"]) => {
@@ -119,20 +125,20 @@ async function Collection({ searchParams }: Pick<PageProps<"/">, "searchParams">
         <>
           {filtered && (
             <p className="text-sm text-muted-foreground" aria-live="polite">
-              Showing {movies.length} of {total}
-              {query.q && <> matching &ldquo;{query.q}&rdquo;</>}
+              {matched} of {total} match
+              {query.q && <> &ldquo;{query.q}&rdquo;</>}
             </p>
           )}
-          {query.layout === "list" ? (
-            <MovieTable movies={movies} />
-          ) : (
-            <ul className={GRID}>
-              {movies.map((m) => (
-                <li key={m.id}>
-                  <MovieCard movie={m} />
-                </li>
-              ))}
-            </ul>
+          <CollectionResults movies={movies} layout={query.layout} view={query.view} tagOptions={options.tags} />
+          {matched > movies.length && (
+            <div className="flex flex-col items-center gap-2 pt-2">
+              <p className="text-sm text-muted-foreground">
+                Showing {movies.length} of {matched}
+              </p>
+              <Link href={`/?${moreParams}`} scroll={false} className={buttonVariants({ variant: "outline" })}>
+                Show {Math.min(PAGE_SIZE, matched - movies.length)} more
+              </Link>
+            </div>
           )}
         </>
       ) : filtered ? (

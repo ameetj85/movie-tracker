@@ -53,6 +53,18 @@ export const copySchema = z
     location: optionalText(100).optional().transform((v) => v ?? null),
     loanedTo: optionalText(100).optional().transform((v) => v ?? null),
     loanedOn: optionalDate.optional().transform((v) => v ?? null),
+    upc: z
+      .string()
+      .optional()
+      .transform((v, ctx) => {
+        const digits = (v ?? "").replace(/[\s-]/g, "");
+        if (digits === "") return null;
+        if (!/^\d{8,14}$/.test(digits)) {
+          ctx.addIssue({ code: "custom", message: "A barcode is 8–14 digits" });
+          return z.NEVER;
+        }
+        return digits;
+      }),
   })
   // A loan date without a borrower is meaningless: drop it.
   .transform((c) => (c.loanedTo ? c : { ...c, loanedOn: null }));
@@ -84,6 +96,22 @@ export const movieInputSchema = z
     watchStatus: z.enum(WATCH_STATUSES),
     rating: optionalInt(1, 10, "Rating"),
     notes: optionalText(5000),
+    /** Comma-separated in the form; duplicates are dropped case-insensitively. */
+    tags: z
+      .string()
+      .max(500)
+      .optional()
+      .transform((v) => {
+        const seen = new Set<string>();
+        const list = (v ?? "")
+          .split(",")
+          .map((t) => t.trim().slice(0, 40))
+          .filter((t) => t && !seen.has(t.toLowerCase()) && seen.add(t.toLowerCase()));
+        return list.length ? list : null;
+      }),
+    /** Franchise from TMDB, carried through the form unchanged. */
+    tmdbCollectionId: z.number().int().positive().nullable().optional().transform((v) => v ?? null),
+    tmdbCollectionName: z.string().trim().max(200).nullable().optional().transform((v) => v || null),
     copies: z.array(copySchema).max(50),
   })
   .superRefine((m, ctx) => {

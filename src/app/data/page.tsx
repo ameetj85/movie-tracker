@@ -4,6 +4,7 @@ import { Suspense } from "react";
 
 import { BackupsPanel, BackupsPanelSkeleton } from "@/components/backups-panel";
 import { ImportWizard } from "@/components/import-wizard";
+import { RefreshAllPanel } from "@/components/refresh-all-panel";
 import { buttonVariants } from "@/components/ui/button";
 import { CSV_COLUMNS } from "@/lib/csv-format";
 import { isTmdbConfigured } from "@/lib/tmdb";
@@ -63,6 +64,20 @@ export default function DataPage() {
         </details>
         <ImportWizard tmdbEnabled={isTmdbConfigured()} />
       </section>
+
+      {isTmdbConfigured() && (
+        <section className="flex flex-col gap-3 rounded-2xl border border-primary/10 bg-card p-5 shadow-sm shadow-primary/5 transition-shadow duration-300 hover:shadow-md hover:shadow-primary/10">
+          <div>
+            <h2 className="text-base font-semibold">Refresh from TMDB</h2>
+            <p className="text-sm text-muted-foreground">
+              Fills in missing posters, cast, genres, synopses and runtimes, and records each film&apos;s franchise
+              (for the Franchises page). Only blanks are filled; nothing you&apos;ve entered is overwritten. Movies
+              without a TMDB link are matched by title and year.
+            </p>
+          </div>
+          <RefreshAllPanel />
+        </section>
+      )}
 
       <section className="flex flex-col gap-3 rounded-2xl border border-primary/10 bg-card p-5 shadow-sm shadow-primary/5 transition-shadow duration-300 hover:shadow-md hover:shadow-primary/10">
         <div>
