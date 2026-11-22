@@ -9,9 +9,9 @@ import { formatTimestamp } from "@/lib/format";
 export function MovieTable({ movies }: { movies: MovieWithCopies[] }) {
   const wishlist = movies[0]?.isWishlist ?? false;
   return (
-    <div className="overflow-hidden rounded-xl border">
+    <div className="overflow-hidden rounded-2xl border border-primary/10 bg-card shadow-md shadow-primary/10">
       <table className="w-full text-sm">
-        <thead className="bg-muted/50 text-left text-xs text-muted-foreground">
+        <thead className="bg-linear-to-r from-violet-500/10 to-fuchsia-500/10 text-left text-xs text-accent-foreground">
           <tr>
             <th scope="col" className="px-3 py-2 font-medium">Title</th>
             <th scope="col" className="hidden px-3 py-2 font-medium md:table-cell">Director</th>
@@ -23,15 +23,17 @@ export function MovieTable({ movies }: { movies: MovieWithCopies[] }) {
         </thead>
         <tbody className="divide-y">
           {movies.map((m) => (
-            <tr key={m.id} className="relative transition-colors hover:bg-muted/40">
+            <tr key={m.id} className="group relative transition-colors hover:bg-accent/60">
               <td className="px-3 py-2">
                 <div className="flex items-center gap-3">
-                  <Poster src={m.posterUrl} title={m.title} compact className="w-8 shrink-0 rounded" />
+                  <Poster src={m.posterUrl} title={m.title} compact
+                    className="w-8 shrink-0 rounded shadow-sm transition-all duration-300 group-hover:scale-110 group-hover:shadow-md group-hover:shadow-primary/30"
+                  />
                   <div className="min-w-0">
                     {/* Stretched link: the whole row is clickable. */}
                     <Link
                       href={`/movies/${m.id}`}
-                      className="font-medium outline-none after:absolute after:inset-0 focus-visible:underline"
+                      className="font-medium transition-colors outline-none group-hover:text-primary after:absolute after:inset-0 focus-visible:underline"
                     >
                       {m.title}
                     </Link>

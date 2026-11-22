@@ -57,7 +57,7 @@ export async function CollectionStats() {
         />
       </div>
 
-      <div className="rounded-xl border p-3">
+      <div className="rounded-2xl border border-primary/10 bg-card p-3 shadow-sm shadow-primary/5 transition-all duration-300 hover:border-primary/25 hover:shadow-lg hover:shadow-primary/15">
         <h2 className="mb-2 text-xs font-medium text-muted-foreground">Copies by format</h2>
         {s.formats.length === 0 ? (
           <p className="text-sm text-muted-foreground">No formats recorded.</p>
@@ -122,9 +122,17 @@ function StatTile({
   children?: React.ReactNode;
 }) {
   return (
-    <div className={cn("flex min-w-0 flex-col rounded-xl border p-3", className)} title={title}>
+    <div
+      className={cn(
+        "relative flex min-w-0 flex-col overflow-hidden rounded-2xl border border-primary/10 bg-card p-3 shadow-sm shadow-primary/5 transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/25 hover:shadow-lg hover:shadow-primary/15",
+        // Thin violet → fuchsia accent along the top edge.
+        "before:absolute before:inset-x-0 before:top-0 before:h-0.5 before:bg-linear-to-r before:from-violet-500 before:to-fuchsia-500",
+        className,
+      )}
+      title={title}
+    >
       <span className="truncate text-xs font-medium text-muted-foreground">{label}</span>
-      <span className="text-2xl font-semibold tracking-tight">{value}</span>
+      <span className="text-2xl font-semibold tracking-tight text-primary">{value}</span>
       <span className="line-clamp-2 text-xs text-muted-foreground">{detail}</span>
       {children}
     </div>

@@ -151,7 +151,7 @@ export function FilterBar({ query, options }: FilterBarProps) {
           ))}
         </FilterSelect>
 
-        <div role="radiogroup" aria-label="Layout" className="inline-flex rounded-lg border p-0.5">
+        <div role="radiogroup" aria-label="Layout" className="inline-flex rounded-lg border bg-card p-0.5 shadow-xs">
           {(
             [
               { value: "grid", label: "Grid view", Icon: LayoutGridIcon },
@@ -167,8 +167,10 @@ export function FilterBar({ query, options }: FilterBarProps) {
               title={label}
               onClick={() => update({ layout: value === "grid" ? null : value })}
               className={cn(
-                "rounded-md p-1 transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
-                query.layout === value ? "bg-muted text-foreground" : "text-muted-foreground hover:text-foreground",
+                "rounded-md p-1 transition-all outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+                query.layout === value
+                  ? "bg-primary text-primary-foreground shadow-sm shadow-primary/40"
+                  : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
               )}
             >
               <Icon className="size-4" aria-hidden />
@@ -197,7 +199,10 @@ function FilterSelect({
 }) {
   return (
     <Select items={items} value={value} onValueChange={(v) => v != null && onChange(v)}>
-      <SelectTrigger size="sm" aria-label={label} className={cn(active && "border-primary bg-primary/5 font-medium")}>
+      <SelectTrigger size="sm" aria-label={label} className={cn(
+          active && "border-primary bg-accent font-medium text-accent-foreground shadow-sm shadow-primary/20",
+        )}
+      >
         <SelectValue />
       </SelectTrigger>
       <SelectContent>{children}</SelectContent>

@@ -198,7 +198,7 @@ function PreviewPanel({
   const ownedCount = data.movieCount - data.wishlistCount;
 
   return (
-    <div className="flex flex-col gap-5 rounded-xl border p-4">
+    <div className="flex flex-col gap-5 rounded-2xl border border-primary/15 bg-card p-5 shadow-md shadow-primary/10">
       <div>
         <h3 className="font-semibold">
           {data.movieCount === 0
@@ -214,7 +214,7 @@ function PreviewPanel({
       </div>
 
       <details className="text-sm">
-        <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
+        <summary className="cursor-pointer text-muted-foreground transition-colors hover:text-primary">
           Column mapping ({mapped.length} matched
           {data.unmappedHeaders.length ? `, ${data.unmappedHeaders.length} ignored` : ""})
         </summary>
@@ -329,10 +329,10 @@ function PreviewPanel({
       )}
 
       {data.sample.length > 0 && (
-        <div className="overflow-hidden rounded-lg border">
+        <div className="overflow-hidden rounded-xl border border-primary/10 shadow-sm shadow-primary/5">
           <table className="w-full text-sm">
             <caption className="sr-only">Preview of movies to import</caption>
-            <thead className="bg-muted/50 text-left text-xs text-muted-foreground">
+            <thead className="bg-linear-to-r from-violet-500/10 to-fuchsia-500/10 text-left text-xs text-accent-foreground">
               <tr>
                 <th scope="col" className="px-3 py-2 font-medium">Title</th>
                 <th scope="col" className="hidden px-3 py-2 font-medium sm:table-cell">Year</th>
@@ -376,7 +376,7 @@ function PreviewPanel({
 function ProgressPanel({ progress }: { progress: ImportProgress | null }) {
   const pct = progress && progress.total ? Math.round((progress.done / progress.total) * 100) : 0;
   return (
-    <div className="flex flex-col gap-2 rounded-xl border p-4" aria-live="polite">
+    <div className="flex flex-col gap-2 rounded-2xl border border-primary/15 bg-card p-5 shadow-md shadow-primary/10" aria-live="polite">
       <div className="flex items-center gap-2 text-sm font-medium">
         <Loader2Icon className="size-4 animate-spin" aria-hidden />
         {progress ? PHASE_LABEL[progress.phase] : "Starting import"}…

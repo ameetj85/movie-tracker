@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useActionState, useId, useState } from "react";
 import { toast } from "sonner";
 
+import { DatePicker } from "@/components/date-picker";
 import { Poster } from "@/components/poster";
 import { TmdbSearch } from "@/components/tmdb-search";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -12,7 +13,6 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import type { MovieWithCopies } from "@/db/schema";
 import type { MovieFormState } from "@/lib/actions";
@@ -139,8 +139,12 @@ export function MovieForm({ action, movie, submitLabel, cancelHref, tmdbEnabled 
       <input type="hidden" name="payload" value={JSON.stringify(values)} />
 
       <aside className="hidden lg:block">
-        <div className="sticky top-20">
-          <Poster src={values.posterUrl.trim() || null} title={values.title || "Untitled"} />
+        <div className="sticky top-24">
+          <Poster
+            src={values.posterUrl.trim() || null}
+            title={values.title || "Untitled"}
+            className="rounded-2xl shadow-xl ring-1 shadow-primary/25 ring-primary/15"
+          />
         </div>
       </aside>
 
@@ -181,7 +185,7 @@ export function MovieForm({ action, movie, submitLabel, cancelHref, tmdbEnabled 
         )}
 
         {tmdbEnabled && (
-          <section className="flex flex-col gap-3 rounded-xl border bg-muted/40 p-4">
+          <section className="flex flex-col gap-3 rounded-2xl border border-primary/20 bg-linear-to-br from-violet-500/10 via-card to-fuchsia-500/10 p-5 shadow-md shadow-primary/10">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
                 <h2 className="text-base font-semibold">Find on TMDB</h2>
@@ -292,7 +296,6 @@ export function MovieForm({ action, movie, submitLabel, cancelHref, tmdbEnabled 
           </Field>
         </Section>
 
-        <Separator />
 
         <Section
           title="Ownership"
@@ -315,10 +318,10 @@ export function MovieForm({ action, movie, submitLabel, cancelHref, tmdbEnabled 
                   aria-checked={values.isWishlist === o.wishlist}
                   onClick={() => set("isWishlist", o.wishlist)}
                   className={cn(
-                    "rounded-md px-3 py-1 text-sm font-medium transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+                    "rounded-md px-3 py-1 text-sm font-medium transition-all outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
                     values.isWishlist === o.wishlist
-                      ? "bg-primary text-primary-foreground"
-                      : "text-muted-foreground hover:text-foreground",
+                      ? "bg-primary text-primary-foreground shadow-sm shadow-primary/40"
+                      : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
                   )}
                 >
                   {o.label}
@@ -335,7 +338,10 @@ export function MovieForm({ action, movie, submitLabel, cancelHref, tmdbEnabled 
 
           <div className="flex flex-col gap-3 sm:col-span-2">
             {values.copies.map((copy, i) => (
-              <div key={i} className="grid gap-3 rounded-lg border p-3 sm:grid-cols-2">
+              <div
+                key={i}
+                className="grid gap-3 rounded-xl border border-primary/15 bg-accent/30 p-3 transition-all duration-200 hover:border-primary/30 hover:shadow-md hover:shadow-primary/10 sm:grid-cols-2"
+              >
                 <div className="-mb-1 flex items-center justify-between sm:col-span-2">
                   <span className="text-xs font-medium text-muted-foreground">
                     {values.isWishlist ? "Wanted format" : "Copy"} {i + 1}
@@ -380,11 +386,11 @@ export function MovieForm({ action, movie, submitLabel, cancelHref, tmdbEnabled 
                 {!values.isWishlist && (
                   <div className="grid gap-3 sm:col-span-2 sm:grid-cols-3">
                     <Field label="Purchase date" htmlFor={`purchaseDate-${i}`} error={errors[`copies.${i}.purchaseDate`]}>
-                      <Input
+                      <DatePicker
                         id={`purchaseDate-${i}`}
-                        type="date"
                         value={copy.purchaseDate}
-                        onChange={(e) => setCopy(i, { purchaseDate: e.target.value })}
+                        onChange={(v) => setCopy(i, { purchaseDate: v })}
+                        aria-invalid={!!errors[`copies.${i}.purchaseDate`]}
                       />
                     </Field>
                     <Field label="Price paid" htmlFor={`price-${i}`} error={errors[`copies.${i}.price`]}>
@@ -436,7 +442,6 @@ export function MovieForm({ action, movie, submitLabel, cancelHref, tmdbEnabled 
           </div>
         </Section>
 
-        <Separator />
 
         <Section title="Personal">
           <Field label="Watch status">
@@ -497,7 +502,7 @@ export function MovieForm({ action, movie, submitLabel, cancelHref, tmdbEnabled 
           </Field>
         </Section>
 
-        <div className="flex flex-col-reverse gap-2 border-t pt-6 sm:flex-row sm:justify-end">
+        <div className="flex flex-col-reverse gap-2 border-t border-primary/10 pt-6 sm:flex-row sm:justify-end">
           <Link href={cancelHref} className={buttonVariants({ variant: "outline" })}>
             Cancel
           </Link>
@@ -521,9 +526,12 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <section className="flex flex-col gap-4">
+    <section className="flex flex-col gap-4 rounded-2xl border border-primary/10 bg-card p-5 shadow-sm shadow-primary/5 transition-shadow duration-300 focus-within:shadow-lg focus-within:shadow-primary/10 hover:shadow-md hover:shadow-primary/10">
       <div>
-        <h2 className="text-base font-semibold">{title}</h2>
+        <h2 className="flex items-center gap-2 text-base font-semibold">
+          <span className="h-4 w-1 rounded-full bg-linear-to-b from-violet-500 to-fuchsia-500" aria-hidden />
+          {title}
+        </h2>
         {description && <p className="text-sm text-muted-foreground">{description}</p>}
       </div>
       <div className="grid gap-4 sm:grid-cols-2">{children}</div>
