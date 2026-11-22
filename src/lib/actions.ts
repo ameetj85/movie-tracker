@@ -8,7 +8,15 @@ import { db } from "@/db";
 import { copies, movies } from "@/db/schema";
 import { cachePoster, deletePosterFile, isLocalPoster } from "@/lib/posters";
 import { findDuplicates, getMovie, type DuplicateMatch } from "@/lib/queries";
-import { movieInputSchema, toFieldErrors, type FieldErrors, type MovieInput } from "@/lib/validation";
+import { backupIfDue, createBackup } from "@/lib/backup";
+import {
+  copySchema,
+  movieInputSchema,
+  toFieldErrors,
+  type CopyInput,
+  type FieldErrors,
+  type MovieInput,
+} from "@/lib/validation";
 
 export type MovieFormState =
   | { status: "idle" }
@@ -53,15 +61,22 @@ function movieValues(m: MovieInput, posterUrl: string | null) {
   };
 }
 
-function copyValues(movieId: number, m: MovieInput) {
-  return m.copies.map((c) => ({
+function copyRow(movieId: number, c: CopyInput) {
+  return {
     movieId,
     format: c.format,
     edition: c.edition,
     purchaseDate: c.purchaseDate,
     priceCents: c.price,
     condition: c.condition,
-  }));
+    location: c.location,
+    loanedTo: c.loanedTo,
+    loanedOn: c.loanedOn,
+  };
+}
+
+function copyValues(movieId: number, m: MovieInput) {
+  return m.copies.map((c) => copyRow(movieId, c));
 }
 
 async function duplicateCheck(m: MovieInput, formats: string[], excludeId?: number): Promise<MovieFormState | null> {
@@ -102,6 +117,7 @@ export async function createMovie(_prev: MovieFormState, formData: FormData): Pr
   // Cache remote posters locally so the collection works offline.
   const posterUrl = await cachePoster(data.posterUrl);
 
+  await backupIfDue();
   const id = db.transaction((tx) => {
     const row = tx.insert(movies).values(movieValues(data, posterUrl)).returning({ id: movies.id }).get();
     if (data.copies.length) tx.insert(copies).values(copyValues(row.id, data)).run();
@@ -133,6 +149,7 @@ export async function updateMovie(
 
   const posterUrl = await cachePoster(data.posterUrl);
 
+  await backupIfDue();
   db.transaction((tx) => {
     tx.update(movies)
       .set({ ...movieValues(data, posterUrl), updatedAt: sql`CURRENT_TIMESTAMP` })
@@ -150,6 +167,7 @@ export async function updateMovie(
 }
 
 export async function deleteMovie(id: number): Promise<void> {
+  await backupIfDue();
   const deleted = db
     .delete(movies)
     .where(eq(movies.id, id))
@@ -158,4 +176,62 @@ export async function deleteMovie(id: number): Promise<void> {
   if (deleted) await deletePosterIfUnused(deleted.posterUrl);
   revalidatePath("/", "layout");
   redirect("/");
+}
+
+/**
+ * Wishlist → Owned in one step. The posted copy (what was actually bought)
+ * replaces the wishlist's "wanted formats"; the movie's other fields are kept.
+ */
+export async function markPurchased(
+  id: number,
+  _prev: MovieFormState,
+  formData: FormData,
+): Promise<MovieFormState> {
+  let raw: unknown;
+  try {
+    raw = JSON.parse(String(formData.get("payload") ?? ""));
+  } catch {
+    return { status: "error", message: "Invalid form submission.", fieldErrors: {} };
+  }
+  const result = copySchema.safeParse(raw);
+  if (!result.success) {
+    return { status: "error", message: "Please fix the highlighted fields.", fieldErrors: toFieldErrors(result.error) };
+  }
+  const copy = result.data;
+
+  const existing = await getMovie(id);
+  if (!existing) return { status: "error", message: "This movie no longer exists.", fieldErrors: {} };
+  if (!existing.isWishlist) return { status: "error", message: "This movie is already owned.", fieldErrors: {} };
+
+  if (formData.get("confirmDuplicate") !== "1") {
+    const duplicates = await findDuplicates(existing, [copy.format], id);
+    if (duplicates.length) return { status: "duplicate", duplicates };
+  }
+
+  await backupIfDue();
+  db.transaction((tx) => {
+    tx.update(movies)
+      .set({ isWishlist: false, updatedAt: sql`CURRENT_TIMESTAMP` })
+      .where(eq(movies.id, id))
+      .run();
+    tx.delete(copies).where(eq(copies.movieId, id)).run();
+    tx.insert(copies).values(copyRow(id, copy)).run();
+  });
+
+  revalidatePath("/", "layout");
+  redirect(`/movies/${id}`);
+}
+
+export type BackupResult = { ok: true; file: string } | { ok: false; message: string };
+
+/** "Back up now" on the Import & export page. */
+export async function backupNow(): Promise<BackupResult> {
+  try {
+    const { file } = await createBackup("manual");
+    revalidatePath("/data");
+    return { ok: true, file };
+  } catch (err) {
+    console.error("Manual backup failed:", err);
+    return { ok: false, message: "Backup failed. Check the server log for details." };
+  }
 }

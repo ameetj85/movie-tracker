@@ -1,8 +1,18 @@
-import { StarIcon } from "lucide-react";
+import { HandshakeIcon, StarIcon } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { WATCH_STATUS_LABELS, type WatchStatus } from "@/lib/constants";
 import { cn } from "@/lib/utils";
+
+/** Marks a movie/copy that's currently lent out. */
+export function OnLoanBadge({ to }: { to?: string | null }) {
+  return (
+    <Badge className="border-transparent bg-amber-400 text-amber-950 shadow-xs" title={to ? `Loaned to ${to}` : "On loan"}>
+      <HandshakeIcon data-icon="inline-start" aria-hidden />
+      On loan
+    </Badge>
+  );
+}
 
 /** Color + short label per format family, so formats are scannable at a glance. */
 function formatStyle(format: string): { className: string; short: string } {

@@ -42,6 +42,9 @@ export async function exportCsv(): Promise<string> {
         purchase_date: c?.purchaseDate ?? "",
         price: c?.priceCents == null ? "" : (c.priceCents / 100).toFixed(2),
         condition: c?.condition ?? "",
+        location: c?.location ?? "",
+        loaned_to: c?.loanedTo ?? "",
+        loaned_on: c?.loanedOn ?? "",
       };
       rows.push(
         Object.fromEntries(CSV_COLUMNS.map((k) => [k, escapeCell(row[k])])) as Record<CsvColumn, string>,
@@ -62,6 +65,9 @@ export async function exportJson(): Promise<string> {
       purchaseDate: c.purchaseDate,
       priceCents: c.priceCents,
       condition: c.condition,
+      location: c.location,
+      loanedTo: c.loanedTo,
+      loanedOn: c.loanedOn,
     })),
   }));
   return JSON.stringify({ app: "movie-vault", version: 1, exportedAt: new Date().toISOString(), movies: data }, null, 2);

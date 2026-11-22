@@ -44,6 +44,7 @@ type DatePickerProps = {
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
+  disabled?: boolean;
   "aria-invalid"?: boolean;
 };
 
@@ -52,7 +53,7 @@ type DatePickerProps = {
  * mean paging through months. Picking a month or year while a date is set
  * moves that date (keeping the day, clamped to the month's length).
  */
-export function DatePicker({ id, value, onChange, placeholder = "Pick a date", ...props }: DatePickerProps) {
+export function DatePicker({ id, value, onChange, placeholder = "Pick a date", disabled, ...props }: DatePickerProps) {
   const selected = parse(value);
   const [open, setOpen] = useState(false);
   // "Today" is read when the popover opens, never during render (Cache Components forbids reading the clock while rendering).
@@ -105,9 +106,10 @@ export function DatePicker({ id, value, onChange, placeholder = "Pick a date", .
     <Popover open={open} onOpenChange={handleOpenChange}>
       <PopoverTrigger
         id={id}
+        disabled={disabled}
         aria-invalid={props["aria-invalid"]}
         className={cn(
-          "flex h-8 w-full min-w-0 items-center gap-2 rounded-lg border border-input bg-card px-2.5 text-left text-base shadow-xs transition-[color,border-color,box-shadow] outline-none hover:border-primary/40 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 data-popup-open:border-primary md:text-sm dark:bg-input/30",
+          "flex h-8 w-full min-w-0 items-center gap-2 rounded-lg border border-input bg-card px-2.5 text-left text-base shadow-xs transition-[color,border-color,box-shadow] outline-none hover:border-primary/40 disabled:pointer-events-none disabled:opacity-50 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 data-popup-open:border-primary md:text-sm dark:bg-input/30",
           !selected && "text-muted-foreground",
         )}
       >

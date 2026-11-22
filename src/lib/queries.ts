@@ -1,12 +1,12 @@
 import "server-only";
 
-import { and, between, count, desc, eq, exists, inArray, ne, or, sql, type SQL } from "drizzle-orm";
+import { and, between, count, desc, eq, exists, inArray, isNotNull, ne, or, sql, type SQL } from "drizzle-orm";
 
 import type { AnySQLiteColumn } from "drizzle-orm/sqlite-core";
 
 import { db } from "@/db";
 import { copies, movies, type MovieWithCopies } from "@/db/schema";
-import { DIGITAL_FILTER, type CollectionQuery, type SortKey } from "@/lib/collection-params";
+import { DIGITAL_FILTER, LOANED_FILTER, type CollectionQuery, type SortKey } from "@/lib/collection-params";
 
 /** Case-insensitive substring match with LIKE wildcards in the term escaped. */
 function contains(column: AnySQLiteColumn, term: string): SQL {
@@ -24,7 +24,7 @@ const ORDER_BY: Record<SortKey, SQL[]> = {
 };
 
 export async function listMovies(query: Omit<CollectionQuery, "layout">): Promise<MovieWithCopies[]> {
-  const { q, view, format, genre, status, decade, sort } = query;
+  const { q, view, format, genre, status, decade, location, sort } = query;
   const hasCopy = (cond: SQL) =>
     exists(db.select({ one: sql`1` }).from(copies).where(and(eq(copies.movieId, movies.id), cond)));
 
@@ -42,6 +42,11 @@ export async function listMovies(query: Omit<CollectionQuery, "layout">): Promis
         : undefined,
       status ? eq(movies.watchStatus, status) : undefined,
       decade ? between(movies.releaseYear, decade, decade + 9) : undefined,
+      location === LOANED_FILTER
+        ? hasCopy(isNotNull(copies.loanedTo))
+        : location
+          ? hasCopy(sql`${copies.location} = ${location} COLLATE NOCASE`)
+          : undefined,
     ),
     with: { copies: { orderBy: copies.id } },
     orderBy: ORDER_BY[sort],
@@ -76,10 +81,6 @@ export type CollectionStats = {
   ownedCopies: number;
   watched: number;
   inProgress: number;
-  /** Sum of recorded purchase prices (owned copies only), in cents. */
-  spentCents: number;
-  /** Copies that have a recorded price. */
-  pricedCopies: number;
   /** Owned copies per format, largest first. */
   formats: { format: string; count: number }[];
 };
@@ -95,11 +96,7 @@ export async function getCollectionStats(): Promise<CollectionStats> {
     .from(movies)
     .get()!;
   const c = db
-    .select({
-      copies: count(),
-      spent: sql<number>`COALESCE(SUM(${copies.priceCents}), 0)`,
-      priced: count(copies.priceCents),
-    })
+    .select({ copies: count() })
     .from(copies)
     .innerJoin(movies, eq(movies.id, copies.movieId))
     .where(eq(movies.isWishlist, false))
@@ -118,8 +115,6 @@ export async function getCollectionStats(): Promise<CollectionStats> {
     ownedCopies: c.copies,
     watched: m.watched,
     inProgress: m.inProgress,
-    spentCents: c.spent,
-    pricedCopies: c.priced,
     formats,
   };
 }
@@ -143,10 +138,26 @@ export async function getFilterOptions(view: CollectionQuery["view"]) {
     .innerJoin(movies, eq(movies.id, copies.movieId))
     .where(eq(movies.isWishlist, view === "wishlist"))
     .all();
+  // Locations and loans only apply to copies you own.
+  const locations =
+    view === "owned"
+      ? db.all<{ location: string }>(sql`
+          SELECT DISTINCT ${copies.location} AS location
+          FROM ${copies} JOIN ${movies} ON ${movies.id} = ${copies.movieId}
+          WHERE ${movies.isWishlist} = 0 AND ${copies.location} IS NOT NULL
+          ORDER BY ${copies.location} COLLATE NOCASE`)
+      : [];
+  const anyLoaned =
+    view === "owned" &&
+    !!db.get(sql`
+      SELECT 1 FROM ${copies} JOIN ${movies} ON ${movies.id} = ${copies.movieId}
+      WHERE ${movies.isWishlist} = 0 AND ${copies.loanedTo} IS NOT NULL LIMIT 1`);
   return {
     genres: genres.map((r) => r.genre),
     decades: decades.map((r) => r.decade),
     formats: formats.map((r) => r.format),
+    locations: locations.map((r) => r.location),
+    anyLoaned,
   };
 }
 

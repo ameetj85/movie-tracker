@@ -13,6 +13,9 @@ export type SortKey = keyof typeof SORTS;
 /** Format filter values: an exact format, or "digital" for any digital copy. */
 export const DIGITAL_FILTER = "digital";
 
+/** Location filter values: an exact shelf location, or this for "any copy on loan". */
+export const LOANED_FILTER = "@loaned";
+
 export type CollectionQuery = {
   view: "owned" | "wishlist";
   q: string;
@@ -20,6 +23,7 @@ export type CollectionQuery = {
   genre: string | null;
   status: WatchStatus | null;
   decade: number | null;
+  location: string | null;
   sort: SortKey;
   layout: "grid" | "list";
 };
@@ -41,10 +45,12 @@ export function parseCollectionQuery(sp: RawParams): CollectionQuery {
     genre: one(sp.genre)?.slice(0, 100) || null,
     status: status && (WATCH_STATUSES as readonly string[]).includes(status) ? (status as WatchStatus) : null,
     decade: Number.isInteger(decade) && decade % 10 === 0 && decade >= 1870 && decade <= 2100 ? decade : null,
+    location: one(sp.location)?.trim().slice(0, 100) || null,
     sort: sort && sort in SORTS ? (sort as SortKey) : "title",
     layout: one(sp.layout) === "list" ? "list" : "grid",
   };
 }
 
 /** True when any narrowing filter (not search/sort/layout) is active. */
-export const hasFilters = (q: CollectionQuery) => Boolean(q.format || q.genre || q.status || q.decade);
+export const hasFilters = (q: CollectionQuery) =>
+  Boolean(q.format || q.genre || q.status || q.decade || q.location);

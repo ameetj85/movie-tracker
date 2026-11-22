@@ -1,15 +1,16 @@
-import { ArrowLeftIcon, PencilIcon } from "lucide-react";
+import { ArrowLeftIcon, HandshakeIcon, MapPinIcon, PencilIcon } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 
 import { DeleteMovieButton } from "@/components/delete-movie-button";
-import { FormatBadge, Rating, WatchStatusBadge } from "@/components/movie-meta";
+import { MarkPurchasedDialog } from "@/components/mark-purchased-dialog";
+import { FormatBadge, OnLoanBadge, Rating, WatchStatusBadge } from "@/components/movie-meta";
 import { Poster } from "@/components/poster";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { deleteMovie } from "@/lib/actions";
+import { deleteMovie, markPurchased } from "@/lib/actions";
 import { formatDate, formatPrice, formatRuntime, formatTimestamp } from "@/lib/format";
 import { parseIdParam } from "@/lib/params";
 import { getMovie } from "@/lib/queries";
@@ -62,7 +63,14 @@ async function MovieDetail({ params }: Pick<PageProps<"/movies/[id]">, "params">
               ))}
             </div>
           )}
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
+            {movie.isWishlist && (
+              <MarkPurchasedDialog
+                title={movie.title}
+                wantedFormats={movie.copies.map((c) => c.format)}
+                action={markPurchased.bind(null, movie.id)}
+              />
+            )}
             <Link href={`/movies/${movie.id}/edit`} className={buttonVariants({ variant: "outline" })}>
               <PencilIcon />
               Edit
@@ -95,9 +103,29 @@ async function MovieDetail({ params }: Pick<PageProps<"/movies/[id]">, "params">
                     key={c.id}
                     className="flex flex-col gap-1 p-3 transition-colors hover:bg-accent/50 sm:flex-row sm:items-center sm:justify-between"
                   >
-                    <div className="flex flex-wrap items-center gap-2">
-                      <FormatBadge format={c.format} />
-                      {c.edition && <span className="text-sm">{c.edition}</span>}
+                    <div className="flex flex-col gap-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <FormatBadge format={c.format} />
+                        {c.edition && <span className="text-sm">{c.edition}</span>}
+                        {c.loanedTo && <OnLoanBadge />}
+                      </div>
+                      {(c.location || c.loanedTo) && (
+                        <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
+                          {c.location && (
+                            <span className="inline-flex items-center gap-1">
+                              <MapPinIcon className="size-3.5 text-primary" aria-hidden />
+                              {c.location}
+                            </span>
+                          )}
+                          {c.loanedTo && (
+                            <span className="inline-flex items-center gap-1 text-amber-700 dark:text-amber-400">
+                              <HandshakeIcon className="size-3.5" aria-hidden />
+                              Loaned to {c.loanedTo}
+                              {c.loanedOn && ` since ${formatDate(c.loanedOn)}`}
+                            </span>
+                          )}
+                        </p>
+                      )}
                     </div>
                     {details.length > 0 && <p className="text-sm text-muted-foreground">{details.join(" · ")}</p>}
                   </li>

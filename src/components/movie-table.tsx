@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { FormatBadges, Rating, WatchStatusBadge } from "@/components/movie-meta";
+import { FormatBadges, OnLoanBadge, Rating, WatchStatusBadge } from "@/components/movie-meta";
 import { Poster } from "@/components/poster";
 import type { MovieWithCopies } from "@/db/schema";
 import { formatTimestamp } from "@/lib/format";
@@ -48,7 +48,10 @@ export function MovieTable({ movies }: { movies: MovieWithCopies[] }) {
               </td>
               {!wishlist && (
                 <td className="hidden px-3 py-2 lg:table-cell">
-                  <WatchStatusBadge status={m.watchStatus} />
+                  <div className="flex flex-wrap gap-1">
+                    <WatchStatusBadge status={m.watchStatus} />
+                    {m.copies.some((c) => c.loanedTo) && <OnLoanBadge to={m.copies.find((c) => c.loanedTo)?.loanedTo} />}
+                  </div>
                 </td>
               )}
               <td className="px-3 py-2 text-right whitespace-nowrap">
