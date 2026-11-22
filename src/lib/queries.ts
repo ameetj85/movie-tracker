@@ -150,6 +150,16 @@ export async function getFilterOptions(view: CollectionQuery["view"]) {
   };
 }
 
+/** Highest-rated owned movies (unrated ones excluded), ties broken by title. */
+export async function getTopRated(limit = 10): Promise<MovieWithCopies[]> {
+  return db.query.movies.findMany({
+    where: and(eq(movies.isWishlist, false), sql`${movies.rating} IS NOT NULL`),
+    with: { copies: { orderBy: copies.id } },
+    orderBy: [desc(movies.rating), titleOrder],
+    limit,
+  });
+}
+
 export async function getMovie(id: number): Promise<MovieWithCopies | undefined> {
   return db.query.movies.findFirst({
     where: eq(movies.id, id),

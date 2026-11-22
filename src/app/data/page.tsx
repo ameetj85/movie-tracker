@@ -3,7 +3,6 @@ import type { Metadata } from "next";
 
 import { ImportWizard } from "@/components/import-wizard";
 import { buttonVariants } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
 import { CSV_COLUMNS } from "@/lib/csv-format";
 import { isTmdbConfigured } from "@/lib/tmdb";
 
@@ -12,9 +11,9 @@ export const metadata: Metadata = { title: "Import & export" };
 export default function DataPage() {
   return (
     <div className="flex max-w-3xl flex-col gap-8">
-      <h1 className="text-2xl font-semibold tracking-tight">Import &amp; export</h1>
+      <h1 className="text-gradient w-fit text-3xl font-bold tracking-tight">Import &amp; export</h1>
 
-      <section className="flex flex-col gap-3">
+      <section className="flex flex-col gap-3 rounded-2xl border border-primary/10 bg-card p-5 shadow-sm shadow-primary/5 transition-shadow duration-300 hover:shadow-md hover:shadow-primary/10">
         <div>
           <h2 className="text-base font-semibold">Export</h2>
           <p className="text-sm text-muted-foreground">
@@ -35,9 +34,7 @@ export default function DataPage() {
         </div>
       </section>
 
-      <Separator />
-
-      <section className="flex flex-col gap-3">
+      <section className="flex flex-col gap-3 rounded-2xl border border-primary/10 bg-card p-5 shadow-sm shadow-primary/5 transition-shadow duration-300 hover:shadow-md hover:shadow-primary/10">
         <div>
           <h2 className="text-base font-semibold">Import from CSV</h2>
           <p className="text-sm text-muted-foreground">
@@ -46,7 +43,7 @@ export default function DataPage() {
           </p>
         </div>
         <details className="text-sm">
-          <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
+          <summary className="cursor-pointer text-muted-foreground transition-colors hover:text-primary">
             Recognized columns
           </summary>
           <div className="mt-2 flex flex-col gap-2 text-muted-foreground">
