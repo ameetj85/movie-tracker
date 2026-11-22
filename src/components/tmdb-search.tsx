@@ -113,7 +113,7 @@ export function TmdbSearch({ onSelect, initialQuery = "", autoFocus }: Props) {
       )}
 
       {results.length > 0 && (
-        <ul aria-label="TMDB results" className="flex max-h-96 flex-col divide-y overflow-y-auto rounded-lg border">
+        <ul aria-label="TMDB results" className="flex max-h-96 flex-col divide-y overflow-y-auto rounded-xl border border-primary/15 bg-card shadow-md shadow-primary/10">
           {results.map((r) => (
             <li key={r.tmdbId}>
               <button
@@ -121,8 +121,8 @@ export function TmdbSearch({ onSelect, initialQuery = "", autoFocus }: Props) {
                 onClick={() => choose(r)}
                 disabled={loadingId !== null}
                 className={cn(
-                  "flex w-full items-start gap-3 p-2 text-left transition-colors outline-none hover:bg-muted focus-visible:bg-muted disabled:opacity-60",
-                  loadingId === r.tmdbId && "bg-muted",
+                  "flex w-full items-start gap-3 p-2 text-left transition-colors outline-none hover:bg-accent focus-visible:bg-accent disabled:opacity-60",
+                  loadingId === r.tmdbId && "bg-accent",
                 )}
               >
                 <div className="relative flex aspect-[2/3] w-10 shrink-0 items-center justify-center overflow-hidden rounded bg-muted text-muted-foreground">

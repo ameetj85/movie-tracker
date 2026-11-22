@@ -14,7 +14,7 @@ export const metadata: Metadata = { title: "Edit movie" };
 export default function EditMoviePage({ params }: PageProps<"/movies/[id]/edit">) {
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-2xl font-semibold tracking-tight">Edit movie</h1>
+      <h1 className="text-gradient w-fit text-3xl font-bold tracking-tight">Edit movie</h1>
       <Suspense fallback={<Skeleton className="h-[480px] w-full rounded-xl" />}>
         <EditMovie params={params} />
       </Suspense>

@@ -23,7 +23,7 @@ function formatStyle(format: string): { className: string; short: string } {
 export function FormatBadge({ format, short }: { format: string; short?: boolean }) {
   const style = formatStyle(format);
   return (
-    <Badge className={cn("border-transparent", style.className)} title={format}>
+    <Badge className={cn("border-transparent shadow-xs", style.className)} title={format}>
       {short ? style.short : format}
     </Badge>
   );

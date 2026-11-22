@@ -78,7 +78,7 @@ Nothing uses `"use cache"` yet, because every DB read happens at request time. E
 - Style is `base-nova` (see `components.json`). Components are built on **Base UI (`@base-ui/react`), not Radix**, so primitive props and composition patterns follow Base UI conventions (for example, the `render` prop rather than Radix's `asChild`). Check the generated component source before assuming a Radix API.
 - Class merging uses the `cn` npm package (shadcn's drop-in replacement for clsx + tailwind-merge). Generated components import it as `from "cn"`; `@/lib/utils` just re-exports it.
 - Files in `src/components/ui/` are generated but owned by this repo, so editing them is fine. Put app-specific components in `src/components/`.
-- Icons come from `lucide-react`. `next-themes` is installed, and dark mode uses the `.dark` class variant, but no theme provider is wired up yet.
+- Icons come from `lucide-react`. Dark mode uses the `.dark` class variant on `<html>`, set by `next-themes` (`src/components/theme-provider.tsx`, defaulting to the OS setting). The header's `<ThemeToggle>` switches it. Theme-dependent visuals should use `dark:` classes or CSS tokens, not `useTheme()` during render, because the theme is unknown on the server.
 - Base UI `Select` displays raw values unless the `items` prop (a value → label map) is passed to the root. Pass `null` as the value to show the placeholder.
 - `<Toaster />` (sonner) is mounted in the root layout.
 - ESLint includes React Compiler rules such as `react-hooks/set-state-in-effect`. Derive state during render, and set state only in async callbacks inside effects. `src/components/tmdb-search.tsx` shows the pattern.

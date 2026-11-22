@@ -17,8 +17,11 @@ import { getMovie } from "@/lib/queries";
 export default function MoviePage({ params }: PageProps<"/movies/[id]">) {
   return (
     <div className="flex flex-col gap-6">
-      <Link href="/" className="inline-flex w-fit items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
-        <ArrowLeftIcon className="size-4" aria-hidden />
+      <Link
+        href="/"
+        className="group inline-flex w-fit items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-primary"
+      >
+        <ArrowLeftIcon className="size-4 transition-transform group-hover:-translate-x-0.5" aria-hidden />
         Back to collection
       </Link>
       <Suspense fallback={<DetailSkeleton />}>
@@ -39,7 +42,8 @@ async function MovieDetail({ params }: Pick<PageProps<"/movies/[id]">, "params">
 
   return (
     <article className="grid gap-8 md:grid-cols-[minmax(0,260px)_1fr]">
-      <Poster src={movie.posterUrl} title={movie.title} className="mx-auto w-full max-w-[260px] shadow-md" />
+      <Poster src={movie.posterUrl} title={movie.title} className="mx-auto w-full max-w-[260px] rounded-2xl shadow-2xl ring-1 shadow-primary/30 ring-primary/15 transition-transform duration-500 hover:-translate-y-1 hover:rotate-[0.5deg]"
+      />
 
       <div className="flex min-w-0 flex-col gap-6">
         <header className="flex flex-col gap-3">
@@ -47,12 +51,12 @@ async function MovieDetail({ params }: Pick<PageProps<"/movies/[id]">, "params">
             {movie.isWishlist ? <Badge variant="outline">Wishlist</Badge> : <WatchStatusBadge status={movie.watchStatus} />}
             <Rating value={movie.rating} />
           </div>
-          <h1 className="text-3xl font-semibold tracking-tight text-balance">{movie.title}</h1>
+          <h1 className="text-gradient w-fit pb-1 text-4xl font-bold tracking-tight text-balance">{movie.title}</h1>
           {facts && <p className="text-muted-foreground">{facts}</p>}
           {movie.genres && movie.genres.length > 0 && (
             <div className="flex flex-wrap gap-1">
               {movie.genres.map((g) => (
-                <Badge key={g} variant="secondary">
+                <Badge key={g} variant="secondary" className="transition-colors hover:bg-primary hover:text-primary-foreground">
                   {g}
                 </Badge>
               ))}
@@ -79,7 +83,7 @@ async function MovieDetail({ params }: Pick<PageProps<"/movies/[id]">, "params">
           {movie.copies.length === 0 ? (
             <p className="text-sm text-muted-foreground">No formats listed.</p>
           ) : (
-            <ul className="divide-y rounded-lg border">
+            <ul className="divide-y overflow-hidden rounded-xl border border-primary/10 bg-card shadow-md shadow-primary/10">
               {movie.copies.map((c) => {
                 const details = [
                   c.condition,
@@ -87,7 +91,10 @@ async function MovieDetail({ params }: Pick<PageProps<"/movies/[id]">, "params">
                   formatPrice(c.priceCents),
                 ].filter(Boolean);
                 return (
-                  <li key={c.id} className="flex flex-col gap-1 p-3 sm:flex-row sm:items-center sm:justify-between">
+                  <li
+                    key={c.id}
+                    className="flex flex-col gap-1 p-3 transition-colors hover:bg-accent/50 sm:flex-row sm:items-center sm:justify-between"
+                  >
                     <div className="flex flex-wrap items-center gap-2">
                       <FormatBadge format={c.format} />
                       {c.edition && <span className="text-sm">{c.edition}</span>}

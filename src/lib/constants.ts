@@ -14,6 +14,7 @@ export const FORMATS = [
   "VHS",
   "Digital - Apple TV",
   "Digital - Vudu/Fandango",
+  "Digital - Amazon Prime",
   "Digital - Other",
   "Local File",
 ] as const;
