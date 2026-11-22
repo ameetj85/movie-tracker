@@ -1,5 +1,6 @@
 import { FilmIcon, FilterXIcon, PlusIcon, SearchXIcon } from "lucide-react";
 import Link from "next/link";
+import { connection } from "next/server";
 import { Suspense } from "react";
 
 import { CollectionStats, CollectionStatsSkeleton } from "@/components/collection-stats";
@@ -7,10 +8,11 @@ import { FilterBar } from "@/components/filter-bar";
 import { MovieCard } from "@/components/movie-card";
 import { MovieTable } from "@/components/movie-table";
 import { SearchInput } from "@/components/search-input";
+import { TopRatedCarousel } from "@/components/top-rated-carousel";
 import { buttonVariants } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { hasFilters, parseCollectionQuery, type CollectionQuery } from "@/lib/collection-params";
-import { getCollectionCounts, getFilterOptions, listMovies } from "@/lib/queries";
+import { getCollectionCounts, getFilterOptions, getTopRated, listMovies } from "@/lib/queries";
 import { cn } from "@/lib/utils";
 
 const GRID = "grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6";
@@ -18,13 +20,37 @@ const GRID = "grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-3 md:grid-cols-4 lg:
 export default function HomePage({ searchParams }: PageProps<"/">) {
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-2xl font-semibold tracking-tight">My Collection</h1>
+      <h1 className="text-gradient w-fit text-3xl font-bold tracking-tight">My Collection</h1>
       <Suspense fallback={<CollectionStatsSkeleton />}>
         <CollectionStats />
+      </Suspense>
+      <Suspense fallback={<TopRatedSkeleton />}>
+        <TopRated />
       </Suspense>
       <Suspense fallback={<CollectionSkeleton />}>
         <Collection searchParams={searchParams} />
       </Suspense>
+    </div>
+  );
+}
+
+async function TopRated() {
+  // DB reads must happen per request, not get baked into the prerendered shell.
+  await connection();
+  const movies = await getTopRated(10);
+  if (movies.length === 0) return null;
+  return <TopRatedCarousel movies={movies} />;
+}
+
+function TopRatedSkeleton() {
+  return (
+    <div className="flex flex-col gap-3">
+      <Skeleton className="h-7 w-40" />
+      <div className="flex gap-4 overflow-hidden pb-4">
+        {Array.from({ length: 7 }, (_, i) => (
+          <Skeleton key={i} className="aspect-[2/3] w-36 shrink-0 rounded-2xl sm:w-40 lg:w-44" />
+        ))}
+      </div>
     </div>
   );
 }
@@ -56,21 +82,31 @@ async function Collection({ searchParams }: Pick<PageProps<"/">, "searchParams">
   return (
     <>
       <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <nav aria-label="Collection view" className="inline-flex w-fit rounded-lg bg-muted p-0.5">
+        <nav
+          aria-label="Collection view"
+          className="inline-flex w-fit rounded-xl border border-primary/10 bg-accent/60 p-1 shadow-inner shadow-primary/5"
+        >
           {(["owned", "wishlist"] as const).map((v) => (
             <Link
               key={v}
               href={tabHref(v)}
               aria-current={query.view === v ? "page" : undefined}
               className={cn(
-                "rounded-md px-3 py-1 text-sm font-medium transition-colors",
+                "rounded-lg px-3.5 py-1.5 text-sm font-medium transition-all duration-200 outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
                 query.view === v
-                  ? "bg-background text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground",
+                  ? "bg-card text-primary shadow-md shadow-primary/20"
+                  : "text-muted-foreground hover:bg-card/60 hover:text-accent-foreground",
               )}
             >
               {v === "owned" ? "Owned" : "Wishlist"}
-              <span className="ml-1.5 text-xs text-muted-foreground tabular-nums">{counts[v]}</span>
+              <span
+                className={cn(
+                  "ml-1.5 rounded-full px-1.5 py-0.5 text-xs tabular-nums",
+                  query.view === v ? "bg-primary/10 text-primary" : "text-muted-foreground",
+                )}
+              >
+                {counts[v]}
+              </span>
             </Link>
           ))}
         </nav>
@@ -142,8 +178,10 @@ function EmptyState({
   action?: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed px-6 py-16 text-center">
-      <div className="text-muted-foreground [&_svg]:size-10">{icon}</div>
+    <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-primary/30 bg-card/60 px-6 py-16 text-center shadow-sm shadow-primary/5">
+      <div className="flex size-16 items-center justify-center rounded-2xl bg-linear-to-br from-violet-500/15 to-fuchsia-500/15 text-primary shadow-inner [&_svg]:size-8">
+        {icon}
+      </div>
       <div>
         <h2 className="font-medium">{title}</h2>
         <p className="text-sm text-muted-foreground">{description}</p>
