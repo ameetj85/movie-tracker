@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 
 import { MovieForm } from "@/components/movie-form";
+import { TagSuggestions } from "@/components/tag-suggestions";
 import { createMovie } from "@/lib/actions";
 import { isTmdbConfigured } from "@/lib/tmdb";
 
@@ -16,6 +18,10 @@ export default function AddMoviePage() {
         cancelHref="/"
         tmdbEnabled={isTmdbConfigured()}
       />
+      {/* Streams in after the prerendered form; only feeds the Tags autocomplete. */}
+      <Suspense>
+        <TagSuggestions />
+      </Suspense>
     </div>
   );
 }

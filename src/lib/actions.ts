@@ -1,12 +1,13 @@
 "use server";
 
-import { count, eq, sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { db } from "@/db";
 import { copies, movies } from "@/db/schema";
-import { cachePoster, deletePosterFile, isLocalPoster } from "@/lib/posters";
+import { deletePosterIfUnused } from "@/lib/poster-cleanup";
+import { cachePoster } from "@/lib/posters";
 import { findDuplicates, getMovie, type DuplicateMatch } from "@/lib/queries";
 import { backupIfDue, createBackup } from "@/lib/backup";
 import {
@@ -58,6 +59,9 @@ function movieValues(m: MovieInput, posterUrl: string | null) {
     watchStatus: m.watchStatus,
     rating: m.rating,
     notes: m.notes,
+    tags: m.tags,
+    tmdbCollectionId: m.tmdbCollectionId,
+    tmdbCollectionName: m.tmdbCollectionName,
   };
 }
 
@@ -72,6 +76,7 @@ function copyRow(movieId: number, c: CopyInput) {
     location: c.location,
     loanedTo: c.loanedTo,
     loanedOn: c.loanedOn,
+    upc: c.upc,
   };
 }
 
@@ -95,13 +100,6 @@ function formatsToCheckOnEdit(existing: { title: string; tmdbId: number | null; 
   if (!sameFilm) return formats;
   const had = new Set(existing.copies.map((c) => c.format));
   return formats.filter((f) => !had.has(f));
-}
-
-/** Remove a cached poster file once no movie references it any more. */
-async function deletePosterIfUnused(url: string | null) {
-  if (!isLocalPoster(url)) return;
-  const [{ n }] = await db.select({ n: count() }).from(movies).where(eq(movies.posterUrl, url));
-  if (n === 0) await deletePosterFile(url);
 }
 
 export async function createMovie(_prev: MovieFormState, formData: FormData): Promise<MovieFormState> {
