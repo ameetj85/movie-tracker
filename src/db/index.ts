@@ -8,7 +8,8 @@ import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 
 import * as schema from "./schema";
 
-type DB = BetterSQLite3Database<typeof schema>;
+// `$client` (the raw better-sqlite3 handle) is used for online backups.
+type DB = BetterSQLite3Database<typeof schema> & { $client: Database.Database };
 
 function createDb(): DB {
   // turbopackIgnore: these are runtime paths, not files to bundle/trace.
@@ -20,7 +21,17 @@ function createDb(): DB {
   const db = drizzle(sqlite, { schema });
   // Local-first app: apply any pending migrations on first connection so a
   // fresh checkout (or a deleted movies.db) works without a manual step.
-  migrate(db, { migrationsFolder: path.resolve(/*turbopackIgnore: true*/ process.cwd(), "drizzle") });
+  const migrationsFolder = path.resolve(/*turbopackIgnore: true*/ process.cwd(), "drizzle");
+  try {
+    migrate(db, { migrationsFolder });
+  } catch {
+    // Several processes (e.g. `next build` workers) can open the database at
+    // once and race to apply the same migration; the losers fail with errors
+    // like "duplicate column". By now the winner has committed, so a retry
+    // sees the migration as applied and is a no-op. A genuinely broken
+    // migration fails again and is thrown.
+    migrate(db, { migrationsFolder });
+  }
   return db;
 }
 

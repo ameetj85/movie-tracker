@@ -11,10 +11,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Phase 1 (MVP): done.** Manual CRUD, owned/wishlist split, title/director/cast search, duplicate warnings.
 - **Phase 2: done.** TMDB auto-fill, offline poster cache, colored format badges, filters (format, genre, status, decade), sorting, grid/list toggle.
 - **Phase 3: done.** Stats header on the collection page, CSV/JSON export, and CSV import with preview and optional TMDB enrichment (`/data`).
+- **Beyond the spec:**
+  - Top-10-rated carousel.
+  - Light/dark theme.
+  - "Mark as purchased" (wishlist → owned).
+  - Per-copy shelf location and loans.
+  - "Surprise me" random pick (`GET /api/random`, honours the current filters; unwatched only unless a status filter is set).
+  - Automatic database backups.
 
 ## Environment
 
-`.env.local` (gitignored) holds `TMDB_READ_ACCESS_TOKEN` (v4 token, preferred, sent as a Bearer header) and/or `TMDB_API_KEY` (v3 key, fallback). Without either, the TMDB panel is hidden and manual entry still works. Optional overrides: `DATABASE_PATH` (default `movies.db`) and `POSTER_DIR` (default `data/posters`). The add page is prerendered, so whether TMDB is enabled is decided at build time.
+`.env.local` (gitignored) holds `TMDB_READ_ACCESS_TOKEN` (v4 token, preferred, sent as a Bearer header) and/or `TMDB_API_KEY` (v3 key, fallback). Without either, the TMDB panel is hidden and manual entry still works. Optional overrides: `DATABASE_PATH` (default `movies.db`), `POSTER_DIR` (default `data/posters`), and for backups `BACKUP_DIR` (default `data/backups`), `BACKUP_KEEP` (default 14) and `BACKUP_INTERVAL_HOURS` (default 24). The add page is prerendered, so whether TMDB is enabled is decided at build time.
 
 ## Commands
 
@@ -31,10 +38,18 @@ There is no test framework configured yet.
 ## Data layer
 
 - SQLite through **Drizzle ORM** and `better-sqlite3`, which is synchronous. `src/db/index.ts` opens a single connection (cached on `globalThis` across HMR) and **runs pending migrations from `drizzle/` automatically on first connection**, so `db:migrate` is rarely needed. The DB file is `movies.db` in the project root (gitignored). Override it with `DATABASE_PATH`.
-- The schema deliberately differs from the spec's single `movies` table. A **`movies`** row holds title-level data plus personal fields: `watch_status` is a 3-value enum (unwatched/in_progress/watched) instead of a boolean, `rating` is 1–10, there's an `is_wishlist` flag and a `cast` column, and `genres` is a JSON array. Each owned format is a **`copies`** row (format, edition, purchase date, `price_cents`, condition) with `ON DELETE CASCADE`. This is how one movie can be owned in several formats.
+  - `next build` workers open the DB too, so concurrent processes can race on a pending migration. `createDb()` retries `migrate()` once to absorb that.
+  - The running dev server only migrates on its first connection, so restart it after adding a migration.
+- The schema deliberately differs from the spec's single `movies` table. A **`movies`** row holds title-level data plus personal fields: `watch_status` is a 3-value enum (unwatched/in_progress/watched) instead of a boolean, `rating` is 1–10, there's an `is_wishlist` flag and a `cast` column, and `genres` is a JSON array. Each owned format is a **`copies`** row with `ON DELETE CASCADE`. This is how one movie can be owned in several formats.
+  - A copy holds: format, edition, purchase date, `price_cents`, condition, `location`, `loaned_to`, `loaned_on`.
+  - Location and loans are per copy because they describe a physical item. `loaned_on` is cleared by validation when there's no borrower.
+- **Backups** (`src/lib/backup.ts`) use SQLite's online backup API via `db.$client.backup()`.
+  - Every mutating action calls `backupIfDue()` *before* writing. It snapshots at most once per interval, and a failed backup never blocks the save.
+  - Imports always call `createBackup("pre-import")` first.
+  - The `/data` page lists backups and has "Back up now".
 - Reads live in `src/lib/queries.ts` (`server-only`). Mutations live in `src/lib/actions.ts` (Server Actions). After writing, each action calls `revalidatePath("/", "layout")` and redirects. Updates replace a movie's copies wholesale inside a transaction.
 - Duplicate warning: a "duplicate" is the same film (same title case-insensitive, **or** the same `tmdb_id`) with the same format. Actions return `{status: "duplicate"}` unless the form was submitted with `confirmDuplicate=1` (the "Save anyway" button). On edit, only newly added formats are checked, unless the title or TMDB id changed.
-- Collection page state lives entirely in URL params (`view`, `q`, `format`, `genre`, `status`, `decade`, `sort`, `layout`). `src/lib/collection-params.ts` parses them, silently dropping invalid values, and is shared by server and client. The `format=digital` filter matches any `Digital - …` format. The genre filter queries the JSON column with `json_each`. Filter dropdowns list only values present in the data (`getFilterOptions`).
+- Collection page state lives entirely in URL params (`view`, `q`, `format`, `genre`, `status`, `decade`, `location`, `sort`, `layout`). `location=@loaned` means "any copy on loan". `src/lib/collection-params.ts` parses them, silently dropping invalid values, and is shared by server and client. The `format=digital` filter matches any `Digital - …` format. The genre filter queries the JSON column with `json_each`. Filter dropdowns list only values present in the data (`getFilterOptions`).
 
 ## TMDB and posters
 

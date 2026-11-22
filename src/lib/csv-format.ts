@@ -24,6 +24,9 @@ export const CSV_COLUMNS = [
   "purchase_date",
   "price",
   "condition",
+  "location",
+  "loaned_to",
+  "loaned_on",
   "date_added",
 ] as const;
 export type CsvColumn = (typeof CSV_COLUMNS)[number];
@@ -45,12 +48,15 @@ const ALIASES: Record<CsvColumn, string[]> = {
   list: ["list", "iswishlist", "wishlist", "collectionstatus", "ownership", "owned"],
   watch_status: ["watchstatus", "watched", "seen", "status", "viewed"],
   rating: ["rating", "myrating", "yourrating", "personalrating", "score", "userrating"],
-  notes: ["notes", "note", "review", "comments", "comment", "mynotes", "location"],
+  notes: ["notes", "note", "review", "comments", "comment", "mynotes"],
   format: ["format", "formats", "media", "mediatype", "medium", "type", "disc"],
   edition: ["edition", "editions", "version", "packaging"],
   purchase_date: ["purchasedate", "purchased", "dateacquired", "acquired", "boughton"],
   price: ["price", "purchaseprice", "pricepaid", "cost", "paid"],
   condition: ["condition"],
+  location: ["location", "shelf", "shelflocation", "storage", "storagelocation", "storagedevice"],
+  loaned_to: ["loanedto", "loanto", "lentto", "borrower", "borrowedby", "loanedout"],
+  loaned_on: ["loanedon", "loandate", "lenton", "datelent", "loanedsince"],
   date_added: ["dateadded", "added", "createdat", "addeddate"],
 };
 
