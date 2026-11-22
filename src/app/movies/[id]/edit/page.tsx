@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { Suspense } from "react";
 
 import { MovieForm } from "@/components/movie-form";
+import { TagSuggestions } from "@/components/tag-suggestions";
 import { Skeleton } from "@/components/ui/skeleton";
 import { updateMovie } from "@/lib/actions";
 import { parseIdParam } from "@/lib/params";
@@ -17,6 +18,9 @@ export default function EditMoviePage({ params }: PageProps<"/movies/[id]/edit">
       <h1 className="text-gradient w-fit text-3xl font-bold tracking-tight">Edit movie</h1>
       <Suspense fallback={<Skeleton className="h-[480px] w-full rounded-xl" />}>
         <EditMovie params={params} />
+      </Suspense>
+      <Suspense>
+        <TagSuggestions />
       </Suspense>
     </div>
   );

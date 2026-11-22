@@ -7,13 +7,21 @@ import { useTransition } from "react";
 import { SurpriseMeButton } from "@/components/surprise-me-button";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectSeparator, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { DIGITAL_FILTER, LOANED_FILTER, SORTS, type CollectionQuery } from "@/lib/collection-params";
+import { DIGITAL_FILTER, LOANED_FILTER, SORTS, UPGRADE_FILTER, type CollectionQuery } from "@/lib/collection-params";
 import { FORMATS, WATCH_STATUS_LABELS, WATCH_STATUSES } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 
 type FilterBarProps = {
   query: CollectionQuery;
-  options: { genres: string[]; decades: number[]; formats: string[]; locations: string[]; anyLoaned: boolean };
+  options: {
+    genres: string[];
+    decades: number[];
+    formats: string[];
+    locations: string[];
+    anyLoaned: boolean;
+    tags: string[];
+    anyUpgrade: boolean;
+  };
 };
 
 const ALL = "__all";
@@ -26,6 +34,8 @@ export function FilterBar({ query, options }: FilterBarProps) {
 
   function update(patch: Record<string, string | null>) {
     const params = new URLSearchParams(searchParams);
+    // Any filter/sort change starts again from the first page.
+    params.delete("show");
     for (const [k, v] of Object.entries(patch)) {
       if (v === null || v === ALL) params.delete(k);
       else params.set(k, v);
@@ -44,6 +54,7 @@ export function FilterBar({ query, options }: FilterBarProps) {
   const formatItems: Record<string, string> = {
     [ALL]: "All formats",
     [DIGITAL_FILTER]: "Any digital",
+    [UPGRADE_FILTER]: "Upgrade candidates",
     ...Object.fromEntries(formats.map((f) => [f, f])),
   };
   const genreItems: Record<string, string> = { [ALL]: "All genres", ...Object.fromEntries(genres.map((g) => [g, g])) };
@@ -64,7 +75,15 @@ export function FilterBar({ query, options }: FilterBarProps) {
     ...Object.fromEntries(locations.map((l) => [l, l])),
   };
 
-  const active = Boolean(query.format || query.genre || query.status || query.decade || query.location);
+  // Tags match case-insensitively, so the URL may carry a different case than the option.
+  const wantTag = query.tag?.toLowerCase();
+  const matchingTag = wantTag ? options.tags.find((t) => t.toLowerCase() === wantTag) : undefined;
+  const tags = query.tag && !matchingTag ? [query.tag, ...options.tags] : options.tags;
+  const tagValue = matchingTag ?? query.tag ?? ALL;
+  const tagItems: Record<string, string> = { [ALL]: "Any tag", ...Object.fromEntries(tags.map((t) => [t, t])) };
+  const showUpgrade = query.view === "owned" && (options.anyUpgrade || query.format === UPGRADE_FILTER);
+
+  const active = Boolean(query.format || query.genre || query.status || query.decade || query.location || query.tag);
 
   return (
     <div
@@ -80,6 +99,7 @@ export function FilterBar({ query, options }: FilterBarProps) {
       >
         <SelectItem value={ALL}>All formats</SelectItem>
         {hasDigital && <SelectItem value={DIGITAL_FILTER}>Any digital</SelectItem>}
+        {showUpgrade && <SelectItem value={UPGRADE_FILTER}>Upgrade candidates (DVD/VHS only)</SelectItem>}
         {formats.length > 0 && <SelectSeparator />}
         {formats.map((f) => (
           <SelectItem key={f} value={f}>
@@ -157,11 +177,29 @@ export function FilterBar({ query, options }: FilterBarProps) {
         </FilterSelect>
       )}
 
+      {tags.length > 0 && (
+        <FilterSelect
+          label="Tag"
+          items={tagItems}
+          value={tagValue}
+          onChange={(v) => update({ tag: v })}
+          active={!!query.tag}
+        >
+          <SelectItem value={ALL}>Any tag</SelectItem>
+          <SelectSeparator />
+          {tags.map((t) => (
+            <SelectItem key={t} value={t}>
+              {t}
+            </SelectItem>
+          ))}
+        </FilterSelect>
+      )}
+
       {active && (
         <Button
           variant="ghost"
           size="sm"
-          onClick={() => update({ format: null, genre: null, status: null, decade: null, location: null })}
+          onClick={() => update({ format: null, genre: null, status: null, decade: null, location: null, tag: null })}
         >
           <XIcon />
           Clear filters

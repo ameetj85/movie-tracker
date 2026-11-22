@@ -1,4 +1,4 @@
-import { ArrowDownUpIcon, FilmIcon, PlusIcon } from "lucide-react";
+import { ArrowDownUpIcon, FilmIcon, LayersIcon, PlusIcon } from "lucide-react";
 import Link from "next/link";
 
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -19,13 +19,22 @@ export function SiteHeader() {
         </Link>
         <nav className="flex items-center gap-1">
           <Link
+            href="/franchises"
+            className={buttonVariants({ variant: "ghost", size: "sm" })}
+            aria-label="Franchises"
+            title="Franchises"
+          >
+            <LayersIcon aria-hidden />
+            <span className="hidden md:inline">Franchises</span>
+          </Link>
+          <Link
             href="/data"
             className={buttonVariants({ variant: "ghost", size: "sm" })}
             aria-label="Import and export"
             title="Import & export"
           >
             <ArrowDownUpIcon aria-hidden />
-            <span className="hidden sm:inline">Import / Export</span>
+            <span className="hidden md:inline">Import / Export</span>
           </Link>
           <Link href="/movies/add" className={buttonVariants({ size: "sm" })} aria-label="Add movie" title="Add movie">
             <PlusIcon aria-hidden />

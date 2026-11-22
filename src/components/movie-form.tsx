@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useActionState, useId, useState } from "react";
 import { toast } from "sonner";
 
+import { BarcodeLookup, type BarcodeHit } from "@/components/barcode-lookup";
 import { DatePicker } from "@/components/date-picker";
 import { Poster } from "@/components/poster";
 import { TmdbSearch } from "@/components/tmdb-search";
@@ -20,6 +21,7 @@ import {
   CONDITIONS,
   EDITION_SUGGESTIONS,
   FORMATS,
+  TAG_SUGGESTIONS_ID,
   WATCH_STATUS_LABELS,
   WATCH_STATUSES,
   type WatchStatus,
@@ -39,6 +41,7 @@ const emptyCopy = (format = ""): CopyValues => ({
   location: "",
   loanedTo: "",
   loanedOn: "",
+  upc: "",
 });
 
 function toFormValues(movie?: MovieWithCopies): MovieFormValues {
@@ -57,6 +60,9 @@ function toFormValues(movie?: MovieWithCopies): MovieFormValues {
       watchStatus: "unwatched",
       rating: "",
       notes: "",
+      tags: "",
+      tmdbCollectionId: null,
+      tmdbCollectionName: null,
       copies: [emptyCopy()],
     };
   }
@@ -74,6 +80,9 @@ function toFormValues(movie?: MovieWithCopies): MovieFormValues {
     watchStatus: movie.watchStatus,
     rating: movie.rating?.toString() ?? "",
     notes: movie.notes ?? "",
+    tags: movie.tags?.join(", ") ?? "",
+    tmdbCollectionId: movie.tmdbCollectionId,
+    tmdbCollectionName: movie.tmdbCollectionName,
     copies: movie.copies.map((c) => ({
       format: c.format,
       edition: c.edition ?? "",
@@ -83,6 +92,7 @@ function toFormValues(movie?: MovieWithCopies): MovieFormValues {
       location: c.location ?? "",
       loanedTo: c.loanedTo ?? "",
       loanedOn: c.loanedOn ?? "",
+      upc: c.upc ?? "",
     })),
   };
 }
@@ -108,6 +118,29 @@ export function MovieForm({ action, movie, submitLabel, cancelHref, tmdbEnabled 
   // Adding: show TMDB search up front. Editing: behind a button.
   const [showTmdb, setShowTmdb] = useState(!movie);
   const editionListId = useId();
+  // Field ids are unique per form instance: Next keeps recently visited pages
+  // mounted (hidden) for back/forward, so an Add and an Edit form can coexist,
+  // and plain ids like "title" would make labels point at the hidden form.
+  const formId = useId();
+  const fid = (name: string) => `${formId}-${name}`;
+  /** What the TMDB search box starts with: the movie's title, or a barcode lookup's. */
+  const [tmdbQuery, setTmdbQuery] = useState(movie?.title ?? "");
+
+  /** Barcode found: record it on the first copy, pre-pick its format, and search for the film. */
+  function applyBarcode(hit: BarcodeHit) {
+    setValues((v) => {
+      const [first = emptyCopy(), ...rest] = v.copies;
+      return {
+        ...v,
+        title: !tmdbEnabled && hit.title && !v.title ? hit.title : v.title,
+        copies: [{ ...first, upc: hit.upc, format: first.format || hit.format || "" }, ...rest],
+      };
+    });
+    if (hit.title && tmdbEnabled) {
+      setTmdbQuery(hit.title);
+      setShowTmdb(true);
+    }
+  }
 
   const errors: FieldErrors = state.status === "error" ? state.fieldErrors : {};
 
@@ -128,6 +161,8 @@ export function MovieForm({ action, movie, submitLabel, cancelHref, tmdbEnabled 
       synopsis: d.synopsis ?? "",
       runtime: d.runtime?.toString() ?? "",
       posterUrl: d.posterUrl ?? "",
+      tmdbCollectionId: d.collection?.id ?? null,
+      tmdbCollectionName: d.collection?.name ?? null,
     }));
     setShowTmdb(false);
     toast.success(`Filled in details for "${d.title}"`);
@@ -227,15 +262,29 @@ export function MovieForm({ action, movie, submitLabel, cancelHref, tmdbEnabled 
               </div>
             </div>
             {showTmdb && (
-              <TmdbSearch onSelect={applyTmdb} initialQuery={movie?.title ?? ""} autoFocus />
+              // Re-mounts (and re-searches) when a barcode lookup supplies a new title.
+              <TmdbSearch key={tmdbQuery} onSelect={applyTmdb} initialQuery={tmdbQuery} autoFocus />
             )}
           </section>
         )}
 
+        {!movie && (
+          <section className="flex flex-col gap-3 rounded-2xl border border-primary/10 bg-card p-5 shadow-sm shadow-primary/5">
+            <div>
+              <h2 className="text-base font-semibold">Add by barcode</h2>
+              <p className="text-sm text-muted-foreground">
+                Type the number under the disc&apos;s barcode{tmdbEnabled ? " and we'll search TMDB for it" : ""}. The
+                barcode is saved on the copy.
+              </p>
+            </div>
+            <BarcodeLookup onFound={applyBarcode} />
+          </section>
+        )}
+
         <Section title="Details">
-          <Field label="Title" htmlFor="title" error={errors.title} required className="sm:col-span-2">
+          <Field label="Title" htmlFor={fid("title")} error={errors.title} required className="sm:col-span-2">
             <Input
-              id="title"
+              id={fid("title")}
               value={values.title}
               onChange={(e) => set("title", e.target.value)}
               aria-invalid={!!errors.title}
@@ -243,9 +292,9 @@ export function MovieForm({ action, movie, submitLabel, cancelHref, tmdbEnabled 
               required
             />
           </Field>
-          <Field label="Release year" htmlFor="releaseYear" error={errors.releaseYear}>
+          <Field label="Release year" htmlFor={fid("releaseYear")} error={errors.releaseYear}>
             <Input
-              id="releaseYear"
+              id={fid("releaseYear")}
               inputMode="numeric"
               placeholder="e.g. 1999"
               value={values.releaseYear}
@@ -253,38 +302,38 @@ export function MovieForm({ action, movie, submitLabel, cancelHref, tmdbEnabled 
               aria-invalid={!!errors.releaseYear}
             />
           </Field>
-          <Field label="Runtime (minutes)" htmlFor="runtime" error={errors.runtime}>
+          <Field label="Runtime (minutes)" htmlFor={fid("runtime")} error={errors.runtime}>
             <Input
-              id="runtime"
+              id={fid("runtime")}
               inputMode="numeric"
               value={values.runtime}
               onChange={(e) => set("runtime", e.target.value)}
               aria-invalid={!!errors.runtime}
             />
           </Field>
-          <Field label="Director" htmlFor="director" error={errors.director}>
-            <Input id="director" value={values.director} onChange={(e) => set("director", e.target.value)} />
+          <Field label="Director" htmlFor={fid("director")} error={errors.director}>
+            <Input id={fid("director")} value={values.director} onChange={(e) => set("director", e.target.value)} />
           </Field>
-          <Field label="Genres" htmlFor="genres" error={errors.genres} hint="Comma-separated">
+          <Field label="Genres" htmlFor={fid("genres")} error={errors.genres} hint="Comma-separated">
             <Input
-              id="genres"
+              id={fid("genres")}
               placeholder="Action, Sci-Fi"
               value={values.genres}
               onChange={(e) => set("genres", e.target.value)}
             />
           </Field>
-          <Field label="Cast" htmlFor="cast" error={errors.cast} hint="Comma-separated" className="sm:col-span-2">
-            <Input id="cast" value={values.cast} onChange={(e) => set("cast", e.target.value)} />
+          <Field label="Cast" htmlFor={fid("cast")} error={errors.cast} hint="Comma-separated" className="sm:col-span-2">
+            <Input id={fid("cast")} value={values.cast} onChange={(e) => set("cast", e.target.value)} />
           </Field>
           <Field
             label="Poster URL"
-            htmlFor="posterUrl"
+            htmlFor={fid("posterUrl")}
             error={errors.posterUrl}
             hint="Saved locally for offline use"
             className="sm:col-span-2"
           >
             <Input
-              id="posterUrl"
+              id={fid("posterUrl")}
               inputMode="url"
               placeholder="https://…"
               value={values.posterUrl}
@@ -292,9 +341,9 @@ export function MovieForm({ action, movie, submitLabel, cancelHref, tmdbEnabled 
               aria-invalid={!!errors.posterUrl}
             />
           </Field>
-          <Field label="Synopsis" htmlFor="synopsis" error={errors.synopsis} className="sm:col-span-2">
+          <Field label="Synopsis" htmlFor={fid("synopsis")} error={errors.synopsis} className="sm:col-span-2">
             <Textarea
-              id="synopsis"
+              id={fid("synopsis")}
               rows={3}
               value={values.synopsis}
               onChange={(e) => set("synopsis", e.target.value)}
@@ -362,13 +411,13 @@ export function MovieForm({ action, movie, submitLabel, cancelHref, tmdbEnabled 
                     <Trash2Icon />
                   </Button>
                 </div>
-                <Field label="Format" error={errors[`copies.${i}.format`]} required>
+                <Field label="Format" htmlFor={fid(`format-${i}`)} error={errors[`copies.${i}.format`]} required>
                   <Select
                     items={formatItems}
                     value={copy.format || null}
                     onValueChange={(v) => setCopy(i, { format: v ?? "" })}
                   >
-                    <SelectTrigger className="w-full" aria-invalid={!!errors[`copies.${i}.format`]}>
+                    <SelectTrigger id={fid(`format-${i}`)} className="w-full" aria-invalid={!!errors[`copies.${i}.format`]}>
                       <SelectValue placeholder="Choose format" />
                     </SelectTrigger>
                     <SelectContent>
@@ -380,28 +429,40 @@ export function MovieForm({ action, movie, submitLabel, cancelHref, tmdbEnabled 
                     </SelectContent>
                   </Select>
                 </Field>
-                <Field label="Edition" htmlFor={`edition-${i}`} error={errors[`copies.${i}.edition`]}>
-                  <Input
-                    id={`edition-${i}`}
-                    list={editionListId}
-                    placeholder="Standard, Steelbook…"
-                    value={copy.edition}
-                    onChange={(e) => setCopy(i, { edition: e.target.value })}
-                  />
-                </Field>
+                <div className="grid min-w-0 gap-3 sm:grid-cols-[3fr_2fr]">
+                  <Field label="Edition" htmlFor={fid(`edition-${i}`)} error={errors[`copies.${i}.edition`]}>
+                    <Input
+                      id={fid(`edition-${i}`)}
+                      list={editionListId}
+                      placeholder="Standard, Steelbook…"
+                      value={copy.edition}
+                      onChange={(e) => setCopy(i, { edition: e.target.value })}
+                    />
+                  </Field>
+                  <Field label="Barcode" htmlFor={fid(`upc-${i}`)} error={errors[`copies.${i}.upc`]}>
+                    <Input
+                      id={fid(`upc-${i}`)}
+                      inputMode="numeric"
+                      placeholder="UPC"
+                      value={copy.upc ?? ""}
+                      onChange={(e) => setCopy(i, { upc: e.target.value })}
+                      aria-invalid={!!errors[`copies.${i}.upc`]}
+                    />
+                  </Field>
+                </div>
                 {!values.isWishlist && (
                   <div className="grid gap-3 sm:col-span-2 sm:grid-cols-3">
-                    <Field label="Purchase date" htmlFor={`purchaseDate-${i}`} error={errors[`copies.${i}.purchaseDate`]}>
+                    <Field label="Purchase date" htmlFor={fid(`purchaseDate-${i}`)} error={errors[`copies.${i}.purchaseDate`]}>
                       <DatePicker
-                        id={`purchaseDate-${i}`}
+                        id={fid(`purchaseDate-${i}`)}
                         value={copy.purchaseDate}
                         onChange={(v) => setCopy(i, { purchaseDate: v })}
                         aria-invalid={!!errors[`copies.${i}.purchaseDate`]}
                       />
                     </Field>
-                    <Field label="Price paid" htmlFor={`price-${i}`} error={errors[`copies.${i}.price`]}>
+                    <Field label="Price paid" htmlFor={fid(`price-${i}`)} error={errors[`copies.${i}.price`]}>
                       <Input
-                        id={`price-${i}`}
+                        id={fid(`price-${i}`)}
                         inputMode="decimal"
                         placeholder="0.00"
                         value={copy.price}
@@ -409,13 +470,13 @@ export function MovieForm({ action, movie, submitLabel, cancelHref, tmdbEnabled 
                         aria-invalid={!!errors[`copies.${i}.price`]}
                       />
                     </Field>
-                    <Field label="Condition">
+                    <Field label="Condition" htmlFor={fid(`condition-${i}`)}>
                       <Select
                         items={conditionItems}
                         value={copy.condition || null}
                         onValueChange={(v) => setCopy(i, { condition: v ?? "" })}
                       >
-                        <SelectTrigger className="w-full">
+                        <SelectTrigger id={fid(`condition-${i}`)} className="w-full">
                           <SelectValue placeholder="—" />
                         </SelectTrigger>
                         <SelectContent>
@@ -427,25 +488,25 @@ export function MovieForm({ action, movie, submitLabel, cancelHref, tmdbEnabled 
                         </SelectContent>
                       </Select>
                     </Field>
-                    <Field label="Location" htmlFor={`location-${i}`} error={errors[`copies.${i}.location`]}>
+                    <Field label="Location" htmlFor={fid(`location-${i}`)} error={errors[`copies.${i}.location`]}>
                       <Input
-                        id={`location-${i}`}
+                        id={fid(`location-${i}`)}
                         placeholder="e.g. Shelf B3"
                         value={copy.location ?? ""}
                         onChange={(e) => setCopy(i, { location: e.target.value })}
                       />
                     </Field>
-                    <Field label="Loaned to" htmlFor={`loanedTo-${i}`} error={errors[`copies.${i}.loanedTo`]}>
+                    <Field label="Loaned to" htmlFor={fid(`loanedTo-${i}`)} error={errors[`copies.${i}.loanedTo`]}>
                       <Input
-                        id={`loanedTo-${i}`}
+                        id={fid(`loanedTo-${i}`)}
                         placeholder="Who has it?"
                         value={copy.loanedTo ?? ""}
                         onChange={(e) => setCopy(i, { loanedTo: e.target.value })}
                       />
                     </Field>
-                    <Field label="Loaned on" htmlFor={`loanedOn-${i}`} error={errors[`copies.${i}.loanedOn`]}>
+                    <Field label="Loaned on" htmlFor={fid(`loanedOn-${i}`)} error={errors[`copies.${i}.loanedOn`]}>
                       <DatePicker
-                        id={`loanedOn-${i}`}
+                        id={fid(`loanedOn-${i}`)}
                         value={copy.loanedTo?.trim() ? (copy.loanedOn ?? "") : ""}
                         onChange={(v) => setCopy(i, { loanedOn: v })}
                         placeholder={copy.loanedTo?.trim() ? "Pick a date" : "Not on loan"}
@@ -475,13 +536,13 @@ export function MovieForm({ action, movie, submitLabel, cancelHref, tmdbEnabled 
 
 
         <Section title="Personal">
-          <Field label="Watch status">
+          <Field label="Watch status" htmlFor={fid("watchStatus")}>
             <Select
               items={WATCH_STATUS_LABELS}
               value={values.watchStatus}
               onValueChange={(v) => v && set("watchStatus", v as WatchStatus)}
             >
-              <SelectTrigger className="w-full">
+              <SelectTrigger id={fid("watchStatus")} className="w-full">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -493,13 +554,13 @@ export function MovieForm({ action, movie, submitLabel, cancelHref, tmdbEnabled 
               </SelectContent>
             </Select>
           </Field>
-          <Field label="Rating" error={errors.rating}>
+          <Field label="Rating" htmlFor={fid("rating")} error={errors.rating}>
             <Select
               items={ratingItems}
               value={values.rating || null}
               onValueChange={(v) => set("rating", v ?? "")}
             >
-              <SelectTrigger className="w-full">
+              <SelectTrigger id={fid("rating")} className="w-full">
                 <SelectValue placeholder="Not rated" />
               </SelectTrigger>
               <SelectContent>
@@ -522,14 +583,23 @@ export function MovieForm({ action, movie, submitLabel, cancelHref, tmdbEnabled 
               </button>
             </div>
           )}
+          <Field label="Tags" htmlFor={fid("tags")} error={errors.tags} hint="Comma-separated, e.g. Christmas, Kids" className="sm:col-span-2">
+            <Input
+              id={fid("tags")}
+              list={TAG_SUGGESTIONS_ID}
+              placeholder="Date night, Christmas…"
+              value={values.tags ?? ""}
+              onChange={(e) => set("tags", e.target.value)}
+            />
+          </Field>
           <Field
             label="Notes"
-            htmlFor="notes"
+            htmlFor={fid("notes")}
             error={errors.notes}
-            hint="Thoughts, disc quality, shelf location…"
+            hint="Thoughts, disc quality…"
             className="sm:col-span-2"
           >
-            <Textarea id="notes" rows={4} value={values.notes} onChange={(e) => set("notes", e.target.value)} />
+            <Textarea id={fid("notes")} rows={4} value={values.notes} onChange={(e) => set("notes", e.target.value)} />
           </Field>
         </Section>
 

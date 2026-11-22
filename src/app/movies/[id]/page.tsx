@@ -1,4 +1,4 @@
-import { ArrowLeftIcon, HandshakeIcon, MapPinIcon, PencilIcon } from "lucide-react";
+import { ArrowLeftIcon, HandshakeIcon, LayersIcon, MapPinIcon, PencilIcon, TagIcon } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
@@ -7,13 +7,16 @@ import { DeleteMovieButton } from "@/components/delete-movie-button";
 import { MarkPurchasedDialog } from "@/components/mark-purchased-dialog";
 import { FormatBadge, OnLoanBadge, Rating, WatchStatusBadge } from "@/components/movie-meta";
 import { Poster } from "@/components/poster";
+import { RefreshTmdbButton } from "@/components/refresh-tmdb-button";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { WatchHistory } from "@/components/watch-history";
 import { deleteMovie, markPurchased } from "@/lib/actions";
 import { formatDate, formatPrice, formatRuntime, formatTimestamp } from "@/lib/format";
 import { parseIdParam } from "@/lib/params";
-import { getMovie } from "@/lib/queries";
+import { getMovie, getViewings } from "@/lib/queries";
+import { isTmdbConfigured } from "@/lib/tmdb";
 
 export default function MoviePage({ params }: PageProps<"/movies/[id]">) {
   return (
@@ -34,7 +37,7 @@ export default function MoviePage({ params }: PageProps<"/movies/[id]">) {
 
 async function MovieDetail({ params }: Pick<PageProps<"/movies/[id]">, "params">) {
   const id = parseIdParam((await params).id);
-  const movie = await getMovie(id);
+  const [movie, history] = await Promise.all([getMovie(id), getViewings(id)]);
   if (!movie) notFound();
 
   const facts = [movie.releaseYear, formatRuntime(movie.runtime), movie.director && `Directed by ${movie.director}`]
@@ -63,6 +66,29 @@ async function MovieDetail({ params }: Pick<PageProps<"/movies/[id]">, "params">
               ))}
             </div>
           )}
+          {(movie.tags?.length || movie.tmdbCollectionId) && (
+            <div className="flex flex-wrap items-center gap-1.5 text-sm">
+              {movie.tmdbCollectionId && (
+                <Link
+                  href={`/franchises/${movie.tmdbCollectionId}`}
+                  className="inline-flex items-center gap-1 rounded-full border border-primary/25 px-2.5 py-0.5 text-xs font-medium text-primary transition-colors hover:bg-primary hover:text-primary-foreground"
+                >
+                  <LayersIcon className="size-3.5" aria-hidden />
+                  {movie.tmdbCollectionName ?? "Franchise"}
+                </Link>
+              )}
+              {movie.tags?.map((t) => (
+                <Link
+                  key={t}
+                  href={`/?tag=${encodeURIComponent(t)}${movie.isWishlist ? "&view=wishlist" : ""}`}
+                  className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-900 transition-colors hover:bg-amber-400 dark:bg-amber-400/15 dark:text-amber-300 dark:hover:bg-amber-400/30"
+                >
+                  <TagIcon className="size-3" aria-hidden />
+                  {t}
+                </Link>
+              ))}
+            </div>
+          )}
           <div className="flex flex-wrap gap-2">
             {movie.isWishlist && (
               <MarkPurchasedDialog
@@ -75,6 +101,7 @@ async function MovieDetail({ params }: Pick<PageProps<"/movies/[id]">, "params">
               <PencilIcon />
               Edit
             </Link>
+            {isTmdbConfigured() && <RefreshTmdbButton movieId={movie.id} />}
             <DeleteMovieButton title={movie.title} action={deleteMovie.bind(null, movie.id)} />
           </div>
         </header>
@@ -133,6 +160,10 @@ async function MovieDetail({ params }: Pick<PageProps<"/movies/[id]">, "params">
               })}
             </ul>
           )}
+        </DetailBlock>
+
+        <DetailBlock title={`Watch history${history.length ? ` · ${history.length}` : ""}`}>
+          <WatchHistory movieId={movie.id} viewings={history} />
         </DetailBlock>
 
         {movie.notes && (
