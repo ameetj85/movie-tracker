@@ -187,6 +187,7 @@ export function planImport(text: string, options: ImportOptions): ImportPlan | {
       location: get("location"),
       loanedTo: get("loaned_to"),
       loanedOn,
+      upc: get("upc"),
     }));
 
     const key = tmdbId
@@ -216,6 +217,7 @@ export function planImport(text: string, options: ImportOptions): ImportPlan | {
         watchStatus,
         rating,
         notes: get("notes"),
+        tags: splitList(get("tags")).join(", "),
         copies: rowCopies,
       },
     });
@@ -262,7 +264,7 @@ const normTitle = (s: string) =>
     .replace(/[^a-z0-9]/g, "");
 
 /** Best TMDB match: same normalized title and (if known) release year within ±1. */
-async function matchTmdb(title: string, year: number | null): Promise<number | null> {
+export async function matchTmdb(title: string, year: number | null): Promise<number | null> {
   const want = normTitle(title);
   const pick = (results: Awaited<ReturnType<typeof searchTmdb>>) =>
     results.find(
@@ -294,6 +296,8 @@ async function enrich(m: MovieInput): Promise<{ input: MovieInput; matched: bool
       synopsis: m.synopsis ?? d.synopsis,
       runtime: m.runtime ?? d.runtime,
       posterUrl: m.posterUrl ?? d.posterUrl,
+      tmdbCollectionId: m.tmdbCollectionId ?? d.collection?.id ?? null,
+      tmdbCollectionName: m.tmdbCollectionName ?? d.collection?.name ?? null,
     },
   };
 }
@@ -402,6 +406,9 @@ export async function commitImport(
           watchStatus: m.watchStatus,
           rating: m.rating,
           notes: m.notes,
+          tags: m.tags,
+          tmdbCollectionId: m.tmdbCollectionId,
+          tmdbCollectionName: m.tmdbCollectionName,
           ...(createdAt ? { createdAt, updatedAt: createdAt } : {}),
         })
         .returning({ id: movies.id })
@@ -419,6 +426,7 @@ export async function commitImport(
               location: c.location,
               loanedTo: c.loanedTo,
               loanedOn: c.loanedOn,
+              upc: c.upc,
             })),
           )
           .run();

@@ -4,7 +4,7 @@ import { sql } from "drizzle-orm";
 import Papa from "papaparse";
 
 import { db } from "@/db";
-import { movies, type MovieWithCopies } from "@/db/schema";
+import { movies, viewings, type MovieWithCopies } from "@/db/schema";
 import { CSV_COLUMNS, escapeCell, type CsvColumn } from "@/lib/csv-format";
 
 function allMovies(): Promise<MovieWithCopies[]> {
@@ -31,6 +31,7 @@ export async function exportCsv(): Promise<string> {
       watch_status: m.watchStatus,
       rating: m.rating?.toString() ?? "",
       notes: m.notes ?? "",
+      tags: m.tags?.join("; ") ?? "",
       date_added: m.createdAt,
     };
     const copyRows = m.copies.length ? m.copies : [null];
@@ -45,6 +46,7 @@ export async function exportCsv(): Promise<string> {
         location: c?.location ?? "",
         loaned_to: c?.loanedTo ?? "",
         loaned_on: c?.loanedOn ?? "",
+        upc: c?.upc ?? "",
       };
       rows.push(
         Object.fromEntries(CSV_COLUMNS.map((k) => [k, escapeCell(row[k])])) as Record<CsvColumn, string>,
@@ -56,7 +58,12 @@ export async function exportCsv(): Promise<string> {
 }
 
 export async function exportJson(): Promise<string> {
-  const data = (await allMovies()).map(({ copies, ...m }) => ({
+  // Watch history isn't in the CSV (one row per copy), but the JSON backup keeps it.
+  const viewingsByMovie = Map.groupBy(
+    db.select().from(viewings).orderBy(viewings.watchedOn, viewings.id).all(),
+    (v) => v.movieId,
+  );
+  const data =(await allMovies()).map(({ copies, ...m }) => ({
     ...m,
     copies: copies.map((c) => ({
       id: c.id,
@@ -68,7 +75,9 @@ export async function exportJson(): Promise<string> {
       location: c.location,
       loanedTo: c.loanedTo,
       loanedOn: c.loanedOn,
+      upc: c.upc,
     })),
+    viewings: (viewingsByMovie.get(m.id) ?? []).map((v) => ({ watchedOn: v.watchedOn, note: v.note })),
   }));
   return JSON.stringify({ app: "movie-vault", version: 1, exportedAt: new Date().toISOString(), movies: data }, null, 2);
 }

@@ -91,6 +91,8 @@ export type TmdbMovieDetails = {
   runtime: number | null;
   /** Remote TMDB poster URL; downloaded to the local cache when the movie is saved. */
   posterUrl: string | null;
+  /** The franchise ("collection" in TMDB terms) the film belongs to, if any. */
+  collection: { id: number; name: string } | null;
 };
 
 type RawDetails = {
@@ -101,6 +103,7 @@ type RawDetails = {
   runtime?: number | null;
   poster_path: string | null;
   genres: { name: string }[];
+  belongs_to_collection?: { id: number; name: string } | null;
   credits?: {
     cast: { name: string; order: number }[];
     crew: { name: string; job: string }[];
@@ -126,5 +129,35 @@ export async function getTmdbMovie(tmdbId: number): Promise<TmdbMovieDetails> {
     synopsis: d.overview || null,
     runtime: d.runtime || null,
     posterUrl: tmdbPosterUrl(d.poster_path, "w500"),
+    collection: d.belongs_to_collection
+      ? { id: d.belongs_to_collection.id, name: d.belongs_to_collection.name }
+      : null,
   };
+}
+
+export type TmdbCollection = {
+  id: number;
+  name: string;
+  /** Films in release order; unreleased ones (no date) last. */
+  parts: { tmdbId: number; title: string; releaseYear: number | null; thumbUrl: string | null }[];
+};
+
+type RawCollection = {
+  id: number;
+  name: string;
+  parts: { id: number; title: string; release_date?: string; poster_path: string | null }[];
+};
+
+/** A franchise and all its films. */
+export async function getTmdbCollection(collectionId: number): Promise<TmdbCollection> {
+  const c = await tmdbFetch<RawCollection>(`/collection/${collectionId}`, { language: "en-US" });
+  const parts = c.parts
+    .map((p) => ({
+      tmdbId: p.id,
+      title: p.title,
+      releaseYear: yearOf(p.release_date),
+      thumbUrl: tmdbPosterUrl(p.poster_path, "w185"),
+    }))
+    .toSorted((a, b) => (a.releaseYear ?? 9999) - (b.releaseYear ?? 9999));
+  return { id: c.id, name: c.name, parts };
 }

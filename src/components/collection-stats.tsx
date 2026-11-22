@@ -1,7 +1,7 @@
 import { connection } from "next/server";
 
 import { Skeleton } from "@/components/ui/skeleton";
-import { getCollectionStats } from "@/lib/queries";
+import { countViewingsInYear, getCollectionStats } from "@/lib/queries";
 import { cn } from "@/lib/utils";
 
 const nf = new Intl.NumberFormat("en-US");
@@ -14,6 +14,9 @@ export async function CollectionStats() {
   // DB reads must happen per request, not get baked into the prerendered shell.
   await connection();
   const s = await getCollectionStats();
+  // Request time (after connection()), so reading the clock here is fine.
+  const year = new Date().getFullYear();
+  const loggedThisYear = await countViewingsInYear(year);
   if (s.owned === 0) return null;
 
   const watchedPct = Math.round((s.watched / s.owned) * 100);
@@ -32,7 +35,7 @@ export async function CollectionStats() {
       <StatTile
         label="Watched"
         value={`${watchedPct}%`}
-        detail={`${nf.format(s.watched)} of ${nf.format(s.owned)}${s.inProgress ? ` · ${s.inProgress} in progress` : ""}`}
+        detail={`${nf.format(s.watched)} of ${nf.format(s.owned)}${s.inProgress ? ` · ${s.inProgress} in progress` : ""}${loggedThisYear ? ` · ${loggedThisYear} viewing${loggedThisYear === 1 ? "" : "s"} logged in ${year}` : ""}`}
       >
         <div
           role="meter"

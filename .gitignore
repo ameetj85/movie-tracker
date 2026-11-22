@@ -46,3 +46,7 @@ movies.db-*
 
 # locally cached posters (see src/lib/posters.ts)
 /data/
+
+# playwright
+/test-results/
+/playwright-report/
